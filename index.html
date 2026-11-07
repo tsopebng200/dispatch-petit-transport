@@ -1,0 +1,1840 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Dispatch Petit Transport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a night dispatch board. Route band across the top (the 21 days as stops), then a 7-column board of
+   paper shipping labels (one label = one post) with a manifest rail on the right. Single deliberate dark look. */
+:root{
+  color-scheme: dark;
+  --night:#04121f; --navy:#072541; --navy-2:#0b3158; --navy-3:#12406f;
+  --yellow:#ffd521; --yellow-ink:#191300;
+  --ink:#eaf1f8; --ink-2:#a8bcd0; --muted:#7c95ae;
+  --line:rgba(234,241,248,.10); --line-2:rgba(234,241,248,.20);
+  --paper:#f2f5f8; --paper-2:#e2e9f0; --paper-ink:#0a2340; --paper-muted:#4f6279;
+  /* intention series — validated (dark on navy, light on paper) */
+  --att:#c98500; --edu:#3987e5; --ras:#199e70; --lev:#d95926; --con:#9085e9;
+  --att-l:#eda100; --edu-l:#2a78d6; --ras-l:#1baf7a; --lev-l:#eb6834; --con-l:#6250d6;
+  /* status (reserved) */
+  --good:#0ca30c; --warning:#fab219; --critical:#d03b3b;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --r:12px;
+}
+*{box-sizing:border-box}
+html,body{background:var(--night)}
+body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--night)}
+a{color:var(--yellow)}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--yellow);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1480px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+h1,h2,h3{text-wrap:balance;margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ───────── top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:color-mix(in srgb,var(--night) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:18px;min-height:62px;flex-wrap:wrap;padding-block:8px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);margin-right:auto}
+.brand svg{width:38px;height:38px;flex:none}
+.brand b{font-family:var(--display);font-weight:900;font-size:24px;letter-spacing:.04em;line-height:1}
+.brand small{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--ink-2);text-transform:uppercase}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{background:none;border:1px solid transparent;border-radius:999px;padding:7px 14px;font-weight:600;font-size:14px;color:var(--ink-2)}
+.tab:hover{color:var(--ink);background:var(--navy)}
+.tab[aria-selected="true"]{color:var(--yellow-ink);background:var(--yellow)}
+.chips-status{display:flex;gap:8px;flex-wrap:wrap}
+.sync{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;padding:5px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2)}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.sync[data-s="ok"] i{background:var(--good)} .sync[data-s="local"] i{background:var(--warning)} .sync[data-s="ro"] i{background:var(--ink-2)} .sync[data-s="off"] i{background:var(--critical)}
+
+/* ───────── hero */
+.hero{padding-block:34px 18px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);gap:34px;align-items:center}
+.hero h1{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:clamp(52px,7.4vw,118px);line-height:.94;letter-spacing:.01em;margin-top:10px}
+.hero h1 .y{color:var(--yellow);display:block;margin-top:.04em}
+.hero .lead{max-width:58ch;color:var(--ink-2);font-size:16.5px;margin:16px 0 0}
+.board-next{margin-top:22px;background:var(--navy);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:grid;gap:12px}
+.board-next .row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.flap{display:flex;gap:6px;align-items:flex-end}
+.flap span{display:grid;place-items:center;min-width:54px;padding:8px 6px 6px;background:#03101c;border-radius:8px;border:1px solid var(--line);font-family:var(--mono);font-weight:600;font-size:26px;color:var(--yellow);font-variant-numeric:tabular-nums;position:relative;line-height:1}
+.flap span::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(0,0,0,.6)}
+.flap em{display:block;font-style:normal;font-size:10px;color:var(--muted);letter-spacing:.1em;margin-top:6px;font-weight:500}
+.next-meta{font-family:var(--mono);font-size:12.5px;color:var(--ink-2)}
+.next-hook{font-weight:600;font-size:16px;color:var(--ink)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.kpi{background:transparent;border-top:2px solid var(--line-2);padding-top:10px}
+.kpi b{display:block;font-family:var(--display);font-weight:800;font-size:40px;line-height:1}
+.kpi span{font-size:12.5px;color:var(--ink-2)}
+.kpi.k-done b{color:#3fd33f} .kpi.k-ready b{color:var(--yellow)}
+.windshield{position:relative;border-radius:28px 28px 16px 16px;overflow:hidden;background:#000;aspect-ratio:16/9;max-width:100%;box-shadow:0 30px 80px -30px rgba(0,0,0,.8),0 0 0 6px var(--navy),0 0 0 7px var(--line-2)}
+.windshield video,.windshield img{width:100%;height:100%;object-fit:cover;display:block}
+.windshield .tag{position:absolute;left:12px;bottom:12px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;background:rgba(4,18,31,.78);border:1px solid var(--line-2);padding:4px 8px;border-radius:6px;color:var(--ink)}
+.windshield .vbtn{position:absolute;right:12px;bottom:12px;background:rgba(4,18,31,.78);border:1px solid var(--line-2);border-radius:999px;padding:5px 11px;font-size:12px}
+.ws-cap{font-size:12.5px;color:var(--muted);margin-top:12px}
+
+/* ───────── route */
+.route-band{padding-block:6px 26px}
+.route-scroll{overflow-x:auto;padding-bottom:6px}
+.route{position:relative;min-width:860px;padding:64px 0 30px}
+.road{position:absolute;left:0;right:0;top:63px;height:14px;border-radius:7px;background:var(--navy-2)}
+.road::after{content:"";position:absolute;left:8px;right:8px;top:6px;height:2px;background:repeating-linear-gradient(90deg,var(--yellow) 0 18px,transparent 18px 34px);opacity:.85;animation:roll 1.6s linear infinite}
+@keyframes roll{to{background-position:34px 0}}
+.stops{position:relative;display:grid;grid-template-columns:repeat(21,minmax(0,1fr))}
+.stop{display:grid;justify-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);text-align:center}
+.stop .pin{width:12px;height:12px;border-radius:50%;background:var(--night);border:2px solid var(--ink-2);margin-top:1px}
+.stop.today .pin{border-color:var(--yellow);background:var(--yellow)}
+.stop .d{font-weight:600;color:var(--ink)}
+.parcels{display:flex;gap:3px;margin-top:6px;min-height:12px}
+.parcel{width:11px;height:11px;border-radius:3px;border:1.5px solid var(--ink-2);background:transparent}
+.parcel.ready{background:var(--yellow);border-color:var(--yellow)}
+.parcel.done{background:var(--good);border-color:var(--good)}
+.parcel.free{border-style:dashed;opacity:.6}
+.weekmark{position:absolute;top:calc(100% + 6px);font-family:var(--display);font-weight:800;font-size:15px;letter-spacing:.08em;color:var(--muted);transform:translateX(6px)}
+.van{position:absolute;top:36px;width:58px;height:34px;transform:translateX(-50%);transition:left 1.6s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 6px 10px rgba(0,0,0,.5));z-index:2}
+.van-label.start{transform:none}
+.van-label{position:absolute;top:10px;transform:translateX(-50%);font-family:var(--mono);font-size:10.5px;color:var(--yellow);white-space:nowrap;background:var(--night);padding:1px 6px;border-radius:4px;border:1px solid rgba(255,213,33,.4);z-index:2}
+
+/* ───────── views */
+main{padding-block:10px 60px}
+.view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.view-head h2{font-family:var(--display);font-weight:900;font-size:clamp(34px,4vw,54px);text-transform:uppercase;line-height:.95;letter-spacing:.01em}
+.view-head p{color:var(--ink-2);margin:6px 0 0;max-width:70ch}
+.seg{display:inline-flex;background:var(--navy);border:1px solid var(--line);border-radius:999px;padding:4px;gap:2px;flex-wrap:wrap}
+.seg button{background:none;border:0;border-radius:999px;padding:7px 14px;font-weight:600;font-size:13.5px;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper-ink)}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 15px;font-weight:600;font-size:14px;border:1px solid var(--line-2);background:var(--navy);color:var(--ink);text-decoration:none}
+.btn:hover{background:var(--navy-2)}
+.btn.primary{background:var(--yellow);color:var(--yellow-ink);border-color:var(--yellow)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.claude{background:transparent;border-color:rgba(144,133,233,.6);color:#c9c2ff}
+.btn.claude:hover{background:rgba(144,133,233,.12)}
+.btn.ghost{background:transparent}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:6px 10px;font-size:12.5px;border-radius:8px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.filter-chip{display:inline-flex;align-items:center;gap:7px;border-radius:999px;border:1px solid var(--line-2);background:transparent;padding:5px 11px;font-size:13px;color:var(--ink-2)}
+.filter-chip i{width:9px;height:9px;border-radius:50%}
+.filter-chip[aria-pressed="false"]{opacity:.45}
+.cal-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:26px}
+
+/* board */
+.board{display:grid;grid-template-columns:64px repeat(7,minmax(0,1fr));gap:10px}
+.dayhead{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);letter-spacing:.08em;padding:4px 2px;border-bottom:1px solid var(--line)}
+.dayhead b{display:block;font-family:var(--display);font-weight:800;font-size:22px;color:var(--ink);letter-spacing:.02em;line-height:1.05}
+.dayhead.is-today b{color:var(--yellow)}
+.momhead{font-family:var(--mono);font-size:11px;color:var(--muted);writing-mode:horizontal-tb;padding-top:12px;letter-spacing:.06em}
+.momhead b{display:block;color:var(--ink-2);font-weight:600}
+.cell{min-width:0;display:grid}
+.lbl{position:relative;min-width:0;background:var(--paper);color:var(--paper-ink);border-radius:10px;padding:10px 10px 9px 15px;display:grid;gap:7px;align-content:start;box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 10px 24px -14px rgba(0,0,0,.7);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
+.board.anim .lbl{animation:drop .5s cubic-bezier(.2,.9,.3,1.2) both;animation-delay:calc(var(--n,0) * 28ms)}
+@keyframes drop{from{transform:translateY(-8px) rotate(-1deg)}to{transform:none}}
+.lbl::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;border-radius:10px 0 0 10px;background:var(--stripe,var(--paper-muted))}
+/* hover never moves the label: a moving target can swallow a quick click (mousedown and mouseup land on different elements) */
+.lbl:hover{box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 0 0 2px var(--yellow),0 18px 34px -16px rgba(0,0,0,.85)}
+.lbl.slot-empty:hover{box-shadow:none;border-color:var(--yellow)}
+.lbl-open{position:absolute;inset:0;background:none;border:0;border-radius:10px;z-index:1}
+.lbl-open:focus-visible{outline-offset:3px}
+.lbl-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 6px;font-family:var(--mono);font-size:10.5px;color:var(--paper-muted);letter-spacing:.04em}
+.lbl-top b{color:var(--paper-ink);font-weight:600}
+.lbl-chips{display:flex;gap:5px;flex-wrap:wrap}
+.ichip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 7px 2px 6px;border-radius:999px;background:var(--paper-2);color:var(--paper-ink);white-space:nowrap}
+.ichip i{width:8px;height:8px;border-radius:50%;background:var(--dot,var(--paper-muted))}
+.tchip{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.06em;padding:2px 6px;border-radius:4px;border:1px solid currentColor;color:var(--paper-muted)}
+.tchip.forte{color:var(--paper-ink);background:var(--paper-ink);color:var(--paper)}
+.lbl-hook{font-weight:600;font-size:13.5px;line-height:1.32;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.lbl-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px}
+.fmt{font-size:11.5px;color:var(--paper-muted);display:block;flex:1 1 90px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st{position:relative;z-index:2;border:1.5px solid var(--paper-muted);background:transparent;color:var(--paper-muted);border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 8px;white-space:nowrap}
+.st[data-v="ready"]{background:var(--yellow);border-color:#b99300;color:var(--yellow-ink)}
+.st[data-v="done"]{background:var(--good);border-color:var(--good);color:#fff}
+.barcode{height:14px;border-radius:2px;opacity:.85}
+.lbl.is-done .lbl-hook{opacity:.55}
+.stamp{position:absolute;right:8px;top:30px;z-index:0;pointer-events:none;font-family:var(--display);font-weight:900;font-size:22px;letter-spacing:.06em;color:var(--good);border:3px solid var(--good);border-radius:6px;padding:0 6px;transform:rotate(-14deg);opacity:.9;mix-blend-mode:multiply}
+.stamp.thud{animation:thud .45s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes thud{0%{transform:rotate(-14deg) scale(2.4);opacity:0}60%{transform:rotate(-14deg) scale(.92);opacity:1}100%{transform:rotate(-14deg) scale(1)}}
+.lbl.slot-empty{background:transparent;border:1.5px dashed var(--line-2);color:var(--ink-2);box-shadow:none;animation:none}
+.lbl.slot-empty::before{display:none}
+.lbl.slot-empty .lbl-top,.lbl.slot-empty .lbl-top b{color:var(--ink-2)}
+.lbl.slot-empty .lbl-hook{font-weight:500;color:var(--ink-2)}
+.lbl.slot-empty .ichip{background:var(--navy);color:var(--ink)}
+.lbl.concept{background:#dfe6ee}
+.lbl.concept .lbl-top b::after{content:" · concept";color:var(--paper-muted);font-weight:400}
+.cell-empty{border-radius:10px;border:1px dashed var(--line);min-height:40px}
+
+/* manifest rail */
+.rail{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));align-items:start}
+.panel{background:var(--navy);border:1px solid var(--line);border-radius:16px;padding:16px}
+.panel h3{font-family:var(--display);font-weight:800;font-size:22px;text-transform:uppercase;letter-spacing:.03em;line-height:1}
+.panel .sub{font-size:12.5px;color:var(--ink-2);margin:4px 0 12px}
+.segbar{display:flex;gap:2px;height:46px;border-radius:6px;overflow:hidden}
+.segbar div{position:relative;display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:13px;color:#fff;min-width:0;cursor:default}
+.segbar div:first-child{border-radius:6px 0 0 6px} .segbar div:last-child{border-radius:0 6px 6px 0}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px}
+.target-rows{display:grid;gap:7px;margin-top:12px}
+.trow{display:grid;grid-template-columns:1fr auto;gap:8px;font-size:13px;align-items:center}
+.trow b{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+.trow small{font-family:var(--mono);color:var(--muted)}
+.trow .delta-ok{color:#5fe05f} .trow .delta-warn{color:var(--warning)}
+.obj-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.obj{border:1px solid var(--line-2);border-radius:8px;padding:6px 8px;font-size:11.5px;color:var(--muted);line-height:1.25}
+.obj b{display:block;font-family:var(--mono);font-size:12px}
+.obj.on{border-color:rgba(12,163,12,.6);color:var(--ink);background:rgba(12,163,12,.10)}
+.obj.on b::after{content:" ✓";color:#5fe05f}
+.hbars{display:grid;gap:8px}
+.hbar{display:grid;grid-template-columns:118px 1fr 26px;gap:8px;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.hbar .track{height:10px;background:rgba(234,241,248,.06);border-radius:0 4px 4px 0}
+.hbar .fill{height:100%;background:var(--edu);border-radius:0 4px 4px 0}
+.hbar b{font-family:var(--mono);font-weight:600;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.thinbar{display:flex;gap:2px;height:10px;border-radius:5px;overflow:hidden;margin-bottom:10px}
+.thinbar div{min-width:0}
+.strows{display:grid;gap:5px;font-size:12.5px}
+.strows span{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+.strows i{width:10px;height:10px;border-radius:3px;flex:none}
+.strows b{margin-left:auto;font-family:var(--mono);color:var(--ink)}
+.todo-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.todo-list label{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--ink-2);cursor:pointer;line-height:1.35}
+.todo-list input{accent-color:var(--yellow);margin-top:2px;flex:none}
+.todo-list input:checked + span{text-decoration:line-through;opacity:.55}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(2,9,16,.6);backdrop-filter:blur(3px);z-index:70;opacity:0;pointer-events:none;transition:opacity .25s}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);z-index:80;background:var(--navy);border-left:1px solid var(--line-2);transform:translateX(102%);transition:transform .38s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.drawer.open{transform:none}
+.dr-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.dr-head .code{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.dr-close{margin-left:auto;background:var(--navy-2);border:1px solid var(--line-2);border-radius:999px;width:34px;height:34px;display:grid;place-items:center;font-size:18px}
+.dr-body{overflow-y:auto;padding:18px;display:grid;gap:18px;align-content:start;flex:1;min-height:0}
+.dr-hook{font-family:var(--display);font-weight:800;font-size:32px;line-height:1;text-transform:uppercase;letter-spacing:.01em}
+.dr-meta{display:flex;flex-wrap:wrap;gap:6px}
+.dr-meta .pill{font-size:12px;border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center}
+.dr-meta .pill i{width:8px;height:8px;border-radius:50%}
+.sec h4{margin:0 0 8px;font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);display:flex;align-items:center;gap:10px}
+.sec h4 .btn{margin-left:auto}
+.copyable pre{white-space:pre-wrap;word-break:break-word;margin:0;font-family:var(--body);font-size:14px;line-height:1.55;background:var(--paper);color:var(--paper-ink);padding:14px 16px;border-radius:10px;max-height:none}
+.copyable pre.code{font-family:var(--mono);font-size:12.5px;background:#03101c;color:#cfe0f0;border:1px solid var(--line)}
+.dr-img{width:100%;border-radius:10px;display:block;border:1px solid var(--line)}
+.note{font-size:13px;color:var(--ink-2);background:rgba(255,213,33,.07);border:1px solid rgba(255,213,33,.3);border-radius:10px;padding:10px 12px}
+.note.warn{background:rgba(208,59,59,.10);border-color:rgba(208,59,59,.45);color:#ffd2d2}
+.tbl-wrap{overflow-x:auto}
+table.script{width:100%;border-collapse:collapse;font-size:13px}
+table.script th,table.script td{text-align:left;vertical-align:top;padding:7px 8px;border-bottom:1px solid var(--line)}
+table.script th{font-family:var(--mono);font-size:11px;color:var(--ink-2);font-weight:500;letter-spacing:.06em}
+table.script td:first-child,table.script td:nth-child(2){font-family:var(--mono);white-space:nowrap;color:var(--ink-2)}
+ol.clean{margin:0;padding-left:20px;display:grid;gap:5px;font-size:14px}
+.status-switch{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;padding:3px;gap:2px}
+.status-switch button{background:none;border:0;border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.status-switch button[aria-pressed="true"][data-v="todo"]{background:var(--ink);color:var(--paper-ink)}
+.status-switch button[aria-pressed="true"][data-v="ready"]{background:var(--yellow);color:var(--yellow-ink)}
+.status-switch button[aria-pressed="true"][data-v="done"]{background:var(--good);color:#fff}
+
+/* checks */
+.checks{display:grid;gap:6px}
+.chk{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:13px;align-items:start;padding:7px 9px;border-radius:8px;background:rgba(234,241,248,.04)}
+.chk .ic{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.chk[data-l="ok"] .ic{background:var(--good)} .chk[data-l="err"] .ic{background:var(--critical)} .chk[data-l="warn"] .ic{background:var(--warning);color:#1b1300} .chk[data-l="info"] .ic{background:var(--navy-3)}
+.chk small{display:block;color:var(--ink-2);font-size:12px;margin-top:1px}
+.score{display:flex;align-items:center;gap:12px}
+.ring{--p:0;width:58px;height:58px;border-radius:50%;background:conic-gradient(var(--ringc,var(--good)) calc(var(--p)*1%),rgba(234,241,248,.1) 0);display:grid;place-items:center;flex:none}
+.ring b{width:44px;height:44px;border-radius:50%;background:var(--navy);display:grid;place-items:center;font-family:var(--mono);font-size:13px}
+
+/* machine */
+.machine{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:22px;align-items:start}
+.ctrl{display:grid;gap:14px}
+.ctrl fieldset{border:0;margin:0;padding:0;min-width:0}
+.ctrl legend{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);margin-bottom:7px;padding:0}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opt{border:1px solid var(--line-2);background:transparent;border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center}
+.opt i{width:8px;height:8px;border-radius:50%}
+.opt[aria-pressed="true"]{background:var(--ink);color:var(--paper-ink);border-color:var(--ink)}
+.opt.any[aria-pressed="true"]{background:var(--yellow);border-color:var(--yellow);color:var(--yellow-ink)}
+select,textarea,input[type="text"]{font:inherit;color:var(--ink);background:#03101c;border:1px solid var(--line-2);border-radius:10px;padding:9px 11px;max-width:100%}
+select{width:100%}
+.reels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;background:#020c16;border:1px solid var(--line-2);border-radius:16px;padding:10px;position:relative}
+.reels::before{content:"";position:absolute;left:10px;right:10px;top:50%;height:2px;transform:translateY(-1px);background:linear-gradient(90deg,transparent,rgba(255,213,33,.55),transparent);pointer-events:none;z-index:2}
+.reel{height:64px;overflow:hidden;border-radius:10px;background:var(--navy);position:relative;mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent)}
+.strip{will-change:transform}
+.strip div{height:64px;display:grid;place-items:center;text-align:center;padding:0 6px;font-family:var(--display);font-weight:800;font-size:17px;line-height:1;text-transform:uppercase;letter-spacing:.02em}
+.reel-cap{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-align:center;margin-top:4px;letter-spacing:.08em;text-transform:uppercase}
+.machine-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.stream{font-family:var(--mono);font-size:12px;color:#9fb6cc;background:#020c16;border:1px solid var(--line);border-radius:10px;padding:12px;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.thinking{display:flex;align-items:center;gap:10px;font-size:13.5px;color:#c9c2ff}
+.thinking .dots i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#c9c2ff;margin-right:4px;animation:blink 1.2s infinite both}
+.thinking .dots i:nth-child(2){animation-delay:.2s}.thinking .dots i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+.ideas{display:grid;gap:14px}
+.idea{background:var(--paper);color:var(--paper-ink);border-radius:14px;padding:16px 16px 14px 20px;position:relative;display:grid;gap:10px}
+.idea.fresh{animation:drop .5s cubic-bezier(.2,.9,.3,1.2) both}
+.idea::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;border-radius:14px 0 0 14px;background:var(--stripe)}
+.idea h3{font-family:var(--display);font-weight:800;font-size:26px;line-height:1.02;text-transform:uppercase}
+.idea .src{font-family:var(--mono);font-size:11px;color:var(--paper-muted);display:flex;gap:10px;flex-wrap:wrap}
+.idea details{border-top:1px solid var(--paper-2);padding-top:8px}
+.idea summary{cursor:pointer;font-weight:600;font-size:13.5px}
+.idea pre{white-space:pre-wrap;word-break:break-word;font-family:var(--body);font-size:13.5px;margin:8px 0 0}
+.idea pre.code{font-family:var(--mono);font-size:12px;background:#e6ecf2;padding:10px;border-radius:8px}
+.idea-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.idea-actions select{background:#fff;color:var(--paper-ink);border-color:#c5d0dc;width:auto;padding:6px 8px;font-size:13px}
+.idea .btn{background:var(--paper-ink);color:var(--paper);border-color:var(--paper-ink)}
+.idea .btn.ghost{background:transparent;color:var(--paper-ink);border-color:#b9c6d4}
+.mini-checks{display:flex;gap:5px;flex-wrap:wrap}
+.mc{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:#dff3df;color:#0a5a0a}
+.mc.bad{background:#fbe0e0;color:#8e1f1f}
+.mc.warn{background:#fff1cc;color:#6b4e00}
+.bank{margin-top:28px}
+.bank-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.bank-item{background:var(--navy);border:1px solid var(--line);border-radius:12px;padding:12px 12px 10px 16px;position:relative;display:grid;gap:8px}
+.bank-item::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:var(--stripe)}
+.bank-item h4{margin:0;font-size:14.5px;line-height:1.3}
+.bank-item .meta{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.empty{border:1.5px dashed var(--line-2);border-radius:14px;padding:22px;color:var(--ink-2);text-align:left;display:grid;gap:6px}
+.empty b{color:var(--ink);font-size:15px}
+
+/* check view */
+.check-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:22px;align-items:start}
+#check-input{width:100%;min-height:330px;resize:vertical;line-height:1.55}
+
+/* visuals */
+.vis-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.vis{background:var(--navy);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:grid;text-align:left;padding:0}
+.vis img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#03101c}
+.vis .vb{padding:10px 12px 12px;display:grid;gap:5px}
+.vis .vt{font-weight:600;font-size:13px;line-height:1.3}
+.vis .vn{font-family:var(--mono);font-size:11px;color:var(--ink-2);display:flex;justify-content:space-between;gap:6px;align-items:center}
+.vbadge{font-family:var(--body);font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px}
+.vbadge.ok{background:rgba(12,163,12,.18);color:#7ff07f}
+.vbadge.fix{background:rgba(208,59,59,.2);color:#ffb3b3}
+.vbadge.care{background:rgba(250,178,25,.18);color:#ffd77a}
+.vbadge.real{background:rgba(57,135,229,.2);color:#aed0ff}
+
+/* rules */
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.rules .panel ul,.rules .panel ol{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px;color:var(--ink-2)}
+.rules .panel li b{color:var(--ink)}
+.intent-def{display:grid;gap:8px}
+.intent-def div{display:grid;grid-template-columns:12px 1fr;gap:10px;font-size:14px;color:var(--ink-2)}
+.intent-def i{width:12px;height:12px;border-radius:3px;margin-top:4px}
+.intent-def b{color:var(--ink)}
+
+/* toast + tooltip */
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--ink);color:var(--paper-ink);font-weight:600;font-size:14px;padding:10px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:all .3s;z-index:90;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.tip{position:fixed;z-index:95;pointer-events:none;background:#020c16;color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:6px 9px;font-size:12.5px;max-width:240px;opacity:0;transition:opacity .12s}
+.tip.show{opacity:1}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:96}
+footer{border-top:1px solid var(--line);padding-block:20px 30px;color:var(--muted);font-size:12.5px}
+
+/* responsive */
+@media (max-width:980px){
+  .hero-grid{grid-template-columns:1fr}
+  .board{grid-template-columns:1fr}
+  .board .momhead,.board .dayhead,.board .is-blank,.board .corner{display:none}
+  .board .cell{grid-column:1/-1}
+  .board .daygroup{display:block;font-family:var(--display);font-weight:800;font-size:22px;margin-top:10px;border-bottom:1px solid var(--line);padding-bottom:4px}
+  .machine,.check-grid{grid-template-columns:1fr}
+}
+@media (min-width:981px){.board .daygroup{display:none}}
+@media (max-width:560px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .flap span{min-width:44px;font-size:21px}
+  .reels{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dr-hook{font-size:26px}
+  .top .wrap{gap:10px}
+  .tab{padding:6px 10px;font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .road::after{animation:none}
+}
+</style>
+</head><body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#calendrier" aria-label="Dispatch Petit Transport, calendrier">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#072541"/><path d="M7 25.5V19c0-1.2.6-2.3 1.6-3l4.6-3.1c.7-.5 1.6-.7 2.4-.7H28c1.4 0 2.6.8 3.2 2l2.2 4.6c.4.8.6 1.6.6 2.5v4.2c0 .8-.7 1.5-1.5 1.5H8.5c-.8 0-1.5-.7-1.5-1.5Z" fill="#ffd521"/><path d="M15 15.4h5.4v4.4h-8.7l3.3-4.4Zm7.4 0h5.5c.6 0 1.1.3 1.4.9l1.6 3.5h-8.5v-4.4Z" fill="#072541"/><circle cx="13.5" cy="27" r="3.2" fill="#072541" stroke="#ffd521" stroke-width="1.6"/><circle cx="28" cy="27" r="3.2" fill="#072541" stroke="#ffd521" stroke-width="1.6"/></svg>
+      <span><b>DISPATCH</b><small>Livraison Montréal Petit Transport</small></span>
+    </a>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab" role="tab" data-view="calendrier" id="tab-calendrier">Calendrier</button>
+      <button class="tab" role="tab" data-view="idees" id="tab-idees">Machine à idées</button>
+      <button class="tab" role="tab" data-view="controle" id="tab-controle">Contrôle</button>
+      <button class="tab" role="tab" data-view="visuels" id="tab-visuels">Visuels</button>
+      <button class="tab" role="tab" data-view="garde-fous" id="tab-garde-fous">Garde-fous</button>
+    </nav>
+    <div class="chips-status">
+      <span class="sync" id="sync-chip" data-s="load" title="Où sont enregistrés tes statuts et tes idées"><i></i><span>Connexion…</span></span>
+      <span class="sync" id="claude-chip" data-s="load" title="Rédaction d'idées par Claude"><i></i><span>Claude…</span></span>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Page Facebook · organique · Montréal, Laval, Longueuil</p>
+      <h1>Tableau des <span class="y">départs</span></h1>
+      <p class="lead">49 créneaux sur trois semaines, une seule destination : Messenger. Chaque étiquette est une publication. Suis sa production, génère de nouvelles idées et vérifie chaque légende avant de publier.</p>
+      <div class="board-next" aria-live="polite">
+        <div class="row">
+          <span class="eyebrow" style="color:var(--yellow)">Prochain départ</span>
+          <span class="next-meta" id="next-meta">—</span>
+        </div>
+        <div class="row">
+          <div class="flap" id="flap" aria-label="Temps restant avant la prochaine publication">
+            <div><span id="f-d">00</span><em>JOURS</em></div>
+            <div><span id="f-h">00</span><em>HEURES</em></div>
+            <div><span id="f-m">00</span><em>MIN</em></div>
+            <div><span id="f-s">00</span><em>SEC</em></div>
+          </div>
+          <button class="btn sm ghost" id="next-open" type="button">Ouvrir l'étiquette →</button>
+        </div>
+        <div class="next-hook" id="next-hook">—</div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+    </div>
+    <div>
+      <div class="windshield">
+        <video id="hero-video" src="assets/kia-intro-lite.mp4" poster="assets/photos/intro-poster.jpg" autoplay muted loop playsinline preload="metadata"></video>
+        <span class="tag">Séquence illustrative · IA</span>
+        <button class="vbtn" id="vbtn" type="button">Pause</button>
+      </div>
+      <p class="ws-cap">L'intro du site, réutilisée dimanche soir (P14) en format vertical. Les vraies photos de la Kia restent la référence.</p>
+    </div>
+  </div>
+</section>
+
+<section class="route-band" aria-label="La route des trois semaines">
+  <div class="wrap">
+    <div class="route-scroll">
+      <div class="route" id="route">
+        <div class="road"></div>
+        <div class="stops" id="stops"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main>
+  <!-- CALENDRIER -->
+  <section class="wrap view" id="view-calendrier" aria-labelledby="h-cal">
+    <div class="view-head">
+      <div>
+        <p class="eyebrow">Calendrier de publication</p>
+        <h2 id="h-cal">La semaine en étiquettes</h2>
+        <p id="week-desc"></p>
+      </div>
+      <div class="seg" role="group" aria-label="Semaine">
+        <button type="button" data-week="1" aria-pressed="true">S1 · 9–15 nov.</button>
+        <button type="button" data-week="2" aria-pressed="false">S2 · 16–22 nov.</button>
+        <button type="button" data-week="3" aria-pressed="false">S3 · 23–29 nov.</button>
+      </div>
+    </div>
+    <div class="toolbar" id="cal-toolbar"></div>
+    <div class="cal-layout">
+      <div class="board" id="board"></div>
+      <aside class="rail" id="rail"></aside>
+    </div>
+  </section>
+
+  <!-- MACHINE -->
+  <section class="wrap view" id="view-idees" hidden aria-labelledby="h-idees">
+    <div class="view-head">
+      <div>
+        <p class="eyebrow">Automatiser les idées</p>
+        <h2 id="h-idees">Machine à idées</h2>
+        <p>Choisis un segment, une intention, un format et une objection, ou laisse tout au hasard. La machine assemble une publication complète qui respecte les faits du service. Claude peut aussi en rédiger cinq d'un coup.</p>
+      </div>
+    </div>
+    <div class="machine">
+      <div class="ctrl panel" id="ctrl"></div>
+      <div>
+        <div class="reels" id="reels" aria-hidden="true"></div>
+        <div class="reels-caps" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px" id="reel-caps"></div>
+        <div class="machine-actions">
+          <button class="btn primary" id="spin" type="button">Lancer la machine</button>
+          <button class="btn claude" id="ask-claude" type="button" hidden>5 idées avec Claude</button>
+          <button class="btn ghost" id="stop-claude" type="button" hidden>Arrêter</button>
+          <button class="btn ghost" id="surprise" type="button">Tout au hasard</button>
+        </div>
+        <div id="claude-zone" style="margin-top:14px" hidden></div>
+        <div class="ideas" id="results" style="margin-top:16px"></div>
+      </div>
+    </div>
+    <div class="bank">
+      <div class="view-head"><div><p class="eyebrow">Gardées pour plus tard</p><h2 style="font-size:34px">Banque d'idées</h2></div></div>
+      <div class="bank-list" id="bank"></div>
+    </div>
+  </section>
+
+  <!-- CONTRÔLE -->
+  <section class="wrap view" id="view-controle" hidden aria-labelledby="h-ctl">
+    <div class="view-head">
+      <div>
+        <p class="eyebrow">Avant de publier</p>
+        <h2 id="h-ctl">Contrôle de conformité</h2>
+        <p>Colle n'importe quelle légende. Le contrôle vérifie le lien Messenger, le duo, la limite de 25 kg, les interdits (prix, « gratuit », assurance, délais) et l'étiquette des contenus IA.</p>
+      </div>
+    </div>
+    <div class="check-grid">
+      <div class="panel">
+        <label class="eyebrow" for="check-input" style="display:block;margin-bottom:8px">Légende à vérifier · l'exemple ci-dessous contient des erreurs volontaires</label>
+        <textarea id="check-input"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+          <label class="eyebrow" for="check-kind">Format</label>
+          <select id="check-kind" style="width:auto">
+            <option value="ia">Vidéo IA</option><option value="visuel">Visuel existant (IA)</option><option value="photo">Vraie photo</option><option value="reel">Vidéo réelle</option><option value="autre" selected>Autre (carrousel, image, question)</option>
+          </select>
+          <button class="btn claude" id="fix-claude" type="button" hidden>Corriger avec Claude</button>
+          <button class="btn ghost" id="check-clear" type="button">Vider</button>
+        </div>
+        <div id="fix-zone" style="margin-top:14px" hidden></div>
+      </div>
+      <div class="panel">
+        <div class="score" style="margin-bottom:12px"><div class="ring" id="check-ring"><b id="check-score">0/0</b></div><div><h3>Résultat</h3><p class="sub" id="check-sum" style="margin:2px 0 0"></p></div></div>
+        <div class="checks" id="check-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VISUELS -->
+  <section class="wrap view" id="view-visuels" hidden aria-labelledby="h-vis">
+    <div class="view-head">
+      <div>
+        <p class="eyebrow">18 visuels IA + 3 vraies photos</p>
+        <h2 id="h-vis">Banque de visuels</h2>
+        <p>Les 18 visuels de campagne sont des images générées par IA, créées avant le passage au duo. Huit sont écrits au « je » et doivent être corrigés. Toujours ajouter « Visuel illustratif » dans la légende.</p>
+      </div>
+      <div class="seg" role="group" aria-label="Filtrer les visuels" id="vis-filter">
+        <button type="button" data-f="all" aria-pressed="true">Tous</button>
+        <button type="button" data-f="ok" aria-pressed="false">Utilisables</button>
+        <button type="button" data-f="fix" aria-pressed="false">À corriger</button>
+        <button type="button" data-f="care" aria-pressed="false">Prudence</button>
+        <button type="button" data-f="real" aria-pressed="false">Vraies photos</button>
+      </div>
+    </div>
+    <div class="vis-grid" id="vis-grid"></div>
+  </section>
+
+  <!-- GARDE-FOUS -->
+  <section class="wrap view" id="view-garde-fous" hidden aria-labelledby="h-rules">
+    <div class="view-head"><div><p class="eyebrow">Ne jamais contredire</p><h2 id="h-rules">Garde-fous</h2><p>Les faits du service, les interdits et les règles de rotation. La machine et le contrôle s'appuient sur cette page.</p></div></div>
+    <div class="rules" id="rules"></div>
+  </section>
+</main>
+
+<footer><div class="wrap">Dispatch Petit Transport · plan du 9 au 29 novembre 2026 · contact unique : Messenger <span class="mono">m.me/1481197351735657</span> · rien n'est publié depuis cette page.<br>Version web : statuts et idées enregistrés dans ce navigateur. Version complète, synchronisée et avec Claude : <a href="https://claude.ai/artifact/3TYT8VMsaGy3EzjV6r67rz" rel="noopener">ouvrir sur claude.ai</a>.</div></footer>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dr-title" aria-hidden="true">
+  <div class="dr-head"><span class="code" id="dr-code"></span><button class="dr-close" id="dr-close" type="button" aria-label="Fermer">×</button></div>
+  <div class="dr-body" id="dr-body"></div>
+</aside>
+<div class="toast" id="toast" role="status"></div>
+<div class="tip" id="tip" role="tooltip"></div>
+<canvas class="confetti" id="confetti" hidden></canvas>
+
+<script>
+"use strict";
+/* ═════════════════════════ DONNÉES ═════════════════════════ */
+const MSG = "https://m.me/1481197351735657";
+const VEHICLE = "white 2015-2018 Kia Sedona minivan, rounded body, oval Kia badge, second and third row seats removed, two beige front seats only, beige floor, sliding side door, rear tailgate, Montreal residential street with brick triplexes";
+const NEGATIVE = "pickup truck, box truck, cargo van, commercial van, Dodge, Honda Odyssey, Toyota Sienna, any other minivan model, any other vehicle in frame, second row seats, third row seats, bench seats, logos, brand names on clothing, readable text, subtitles, watermark, license plate characters, heavy appliances, refrigerator, washing machine, piano, glass furniture, fragile items, mattress, full apartment move, moving truck, distorted hands, extra fingers, warped faces, people running, unsafe lifting";
+
+const INTENTS = {
+  ATT:{label:"Attirer", short:"Attirer", def:"se faire voir, accroche forte, situation que l'avatar reconnaît", c:"var(--att)", l:"var(--att-l)"},
+  EDU:{label:"Éduquer", short:"Éduquer", def:"conseils utiles (mesurer un meuble, préparer une livraison Marketplace…)", c:"var(--edu)", l:"var(--edu-l)"},
+  RAS:{label:"Rassurer", short:"Rassurer", def:"la vraie Kia, le duo, comment ça se passe, coulisses", c:"var(--ras)", l:"var(--ras-l)"},
+  LEV:{label:"Lever une objection", short:"Objection", def:"« ça rentre-tu ? », « c'est combien ? », « dois-je porter ? », « les escaliers ? »", c:"var(--lev)", l:"var(--lev-l)"},
+  CON:{label:"Convertir", short:"Convertir", def:"appel direct à écrire sur Messenger avec les 5 informations du devis", c:"var(--con)", l:"var(--con-l)"}
+};
+const INTENT_ORDER = ["ATT","EDU","RAS","LEV","CON"];
+const OBJ = {
+  O1:"Confiance (nouvelle page, aucun avis)", O2:"Prix réel", O3:"« Ça rentre-tu ? »", O4:"Porter et escaliers", O5:"Date et ponctualité", O6:"Coordination avec le vendeur"
+};
+const OBJ_SHORT = {O1:"Confiance", O2:"Prix", O3:"Ça rentre-tu ?", O4:"Porter", O5:"Date", O6:"Vendeur"};
+const FORMATS = {
+  ia:{label:"Vidéo IA", type:"FORTE", icon:"▶"}, reel:{label:"Vidéo réelle", type:"FORTE", icon:"●"}, carrousel:{label:"Carrousel", type:"FORTE", icon:"▦"},
+  photo:{label:"Vraie photo", type:"LÉGÈRE", icon:"◐"}, visuel:{label:"Visuel existant", type:"LÉGÈRE", icon:"▣"}, imageqr:{label:"Image Q/R", type:"LÉGÈRE", icon:"?"}, question:{label:"Question", type:"LÉGÈRE", icon:"✎"}
+};
+const MOMENTS = {matin:{label:"Matin", time:"07:30"}, midi:{label:"Midi", time:"12:15"}, soir:{label:"Soir", time:"19:30"}};
+const DAYS = ["DIM","LUN","MAR","MER","JEU","VEN","SAM"];
+const DAYS_LONG = ["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+const START = new Date(2026,10,9,0,0,0); // lundi 9 novembre 2026
+
+/* Semaine 1 — 14 publications complètes */
+const POSTS = [
+ {id:"P1", date:"2026-11-09", moment:"matin", type:"LÉGÈRE", intent:"RAS", kind:"photo", format:"Vraie photo (à épingler)", service:"Tous", obj:"O1", img:"assets/photos/kia-profil.jpg",
+  imgNote:"Desktop\\kia\\WhatsApp Image 2026-05-01 at 00.15.2144.jpeg — recadrer en 4:5, aucun texte ajouté.",
+  hook:"Voici la vraie Kia qui transporte vos achats. Pas une image de banque.",
+  caption:`Voici la vraie Kia qui transporte vos achats. Pas une image de banque. 🚐
+
+Nous offrons du petit transport à Montréal, Laval, Longueuil et dans les environs, avec notre minifourgonnette Kia Sedona blanche :
+→ livraison d'achats (Marketplace, seconde main)
+→ petits déménagements partiels (quelques boîtes ou petits meubles)
+→ livraisons pour commerces et artisans
+
+Ce qui change tout : nous sommes deux pour la manutention. Vous n'avez pas besoin de porter.
+
+Nos limites, dites franchement : environ 25 kg maximum par morceau, pas de déménagement complet, pas d'objets très fragiles. Basés à Anjou, nous étudions aussi les trajets jusqu'à environ 1 h 30 de route au départ de Montréal.
+
+Le prix se fait sur devis. Pour en demander un, écrivez-nous sur Messenger avec :
+1. des photos des articles
+2. leurs dimensions et leur poids approximatif
+3. les deux adresses
+4. la date souhaitée
+5. les étages et l'accès aux deux adresses
+
+💬 https://m.me/1481197351735657
+
+(Photo réelle de notre Kia.)
+#Montréal #Laval #Longueuil`,
+  cta:"Écrire sur Messenger avec les 5 informations. Épingler cette publication."},
+ {id:"P2", date:"2026-11-09", moment:"soir", type:"FORTE", intent:"ATT", kind:"ia", format:"Vidéo IA V1 · 15 s", service:"A1", obj:"O3 · O4", prompt:"V1", img:"assets/photos/intro-poster.jpg",
+  hook:"Vous avez trouvé LE meuble sur Marketplace… mais comment allez-vous le ramener ?",
+  script:[["1","0–3 s","Gros plan : des mains tiennent un téléphone avec la photo d'une petite table de chevet (annonce générique, sans logo)","« Trouvé sur Marketplace ✔ » puis « …mais comment le ramener ? »"],["2","3–8 s","La Kia blanche arrive et s'arrête devant un triplex en brique ; la porte latérale coulisse","« On s'en occupe. »"],["3","8–13 s","Deux personnes portent ensemble un petit meuble léger jusqu'au hayon et le déposent sur le plancher beige vide","« Nous sommes deux. Vous ne portez pas. »"],["4","13–15 s","Carton final (Canva/CapCut) : fond #072541","« Envoyez la photo + les 2 adresses sur Messenger » · « ~25 kg max par morceau » · « Séquence illustrative »"]],
+  caption:`Vous avez trouvé LE meuble sur Marketplace… mais comment allez-vous le ramener ? 🤔
+
+Le vendeur veut qu'il parte vite, il ne rentre pas dans votre auto et personne n'est libre pour vous aider à le porter.
+
+C'est exactement le genre de transport qu'on fait :
+→ on étudie le ramassage chez le vendeur et la livraison chez vous
+→ deux personnes s'occupent de la manutention
+→ vous n'avez pas besoin de porter
+
+Avant de dire oui au vendeur, envoyez-nous sur Messenger la photo de l'article, ses dimensions, son poids approximatif, les deux adresses, la date souhaitée et les accès (étages, ascenseur). On vérifie si ça convient à notre Kia et on vous prépare un devis.
+
+Environ 25 kg max par morceau · pas d'objets très fragiles · pas de déménagement complet.
+💬 https://m.me/1481197351735657
+
+(Séquence illustrative créée par IA, pas une livraison réelle.)
+#MarketplaceMontréal #Montréal`,
+  cta:"Envoyer photo, dimensions, poids, adresses, date et accès sur Messenger."},
+ {id:"P3", date:"2026-11-10", moment:"matin", type:"LÉGÈRE", intent:"LEV", kind:"imageqr", format:"Image Q/R (Canva)", service:"A1 · A2", obj:"O4",
+  design:"Fond #072541 · en haut, blanc : « DOIS-JE AIDER À PORTER ? » · au centre, très grand, jaune #FFD521 : « NON. » · dessous, blanc : « Nous sommes deux pour la manutention des articles acceptés. » · bandeau du bas : « Environ 25 kg max par morceau · accès à préciser ». 1080 × 1350, aucune photo IA.",
+  hook:"Dois-je aider à porter ? Non.",
+  caption:`Dois-je aider à porter ? Non.
+
+Nous sommes deux pour la manutention des articles acceptés. Vous n'avez pas besoin de demander à un ami, ni de forcer votre dos.
+
+Ce qu'il faut savoir :
+→ environ 25 kg maximum par morceau (et non par commande)
+→ les escaliers, les étages et les ascenseurs dépendent des articles : précisez-les dans votre demande, on confirme ensemble
+→ pas de déménagement complet ni d'objets très fragiles
+
+Une question sur votre transport ? Écrivez-nous sur Messenger 👉 https://m.me/1481197351735657
+#Montréal #PetitTransport`,
+  cta:"Poser sa question sur Messenger."},
+ {id:"P4", date:"2026-11-10", moment:"soir", type:"FORTE", intent:"EDU", kind:"carrousel", format:"Carrousel · 7 diapos", service:"A1 · A2", obj:"O3",
+  slides:["Fond marine, photo réelle de la Kia de profil en petit. Titre jaune : « ÇA RENTRE-TU DANS LA KIA ? » · « Comment préparer votre demande en 2 minutes »","« 1. Mesurez les 3 côtés » — longueur × largeur × hauteur, au point le plus large : pattes, poignées et moulures comprises.","« 2. Notez le poids de CHAQUE morceau » — fiche du fabricant, annonce ou pèse-personne (avec puis sans l'objet). Environ 25 kg max par morceau.","« 3. Ça se démonte ? Dites-le » — pattes, tablettes, tiroirs : ça aide à évaluer le chargement.","« 4. Photographiez les accès » — escaliers, portes étroites, ascenseur… aux deux adresses.","« 5. Envoyez tout dans un seul message » — photos + mesures + poids + 2 adresses + date + accès.","Fond jaune, texte marine : « On vérifie et on vous prépare un devis. » · « Deux personnes pour porter · pas d'objets très fragiles · pas de déménagement complet » · « Messenger : m.me/1481197351735657 »"],
+  hook:"Ça rentre-tu dans la Kia ?",
+  caption:`Ça rentre-tu dans la Kia ? 📏
+
+Avant de nous écrire, prenez 2 minutes pour préparer votre demande. On pourra vous répondre avec un devis plus précis :
+
+1. Mesurez la longueur, la largeur et la hauteur, au point le plus large
+2. Notez le poids approximatif de chaque morceau (environ 25 kg max par morceau)
+3. Dites-nous si l'article se démonte
+4. Photographiez les accès : escaliers, portes, ascenseur
+5. Envoyez tout dans un seul message, avec les deux adresses et la date souhaitée
+
+On est deux pour la manutention, vous n'avez pas besoin de porter. Pas de déménagement complet ni d'objets très fragiles.
+
+💬 Votre message ici : https://m.me/1481197351735657
+
+(Photo réelle de notre Kia sur la première diapo.)
+#Montréal #Laval #Longueuil`,
+  cta:"Envoyer les mesures sur Messenger."},
+ {id:"P5", date:"2026-11-11", moment:"matin", type:"LÉGÈRE", intent:"ATT", kind:"visuel", format:"Visuel existant n° 10", service:"A1", obj:"O3", img:"assets/visuels/10.jpg",
+  imgNote:"campagne-livraison\\images\\10.png — aucun texte au « je », utilisable tel quel.",
+  hook:"Coup de cœur trouvé. Transport à trouver ?",
+  caption:`Coup de cœur trouvé. Transport à trouver ? 🪑
+
+Un petit fauteuil, une table d'appoint, une étagère… L'annonce est parfaite, mais l'article ne rentre pas dans votre voiture.
+
+Envoyez-nous sur Messenger sa photo, ses dimensions, son poids approximatif et les deux adresses. On vérifie si le transport convient à notre Kia et on vous prépare un devis.
+
+Deux personnes s'occupent de la manutention : vous n'avez pas à porter. Environ 25 kg max par morceau · pas d'objets très fragiles.
+
+💬 https://m.me/1481197351735657
+
+(Visuel illustratif.)
+#MarketplaceMontréal #SecondeMain`,
+  cta:"Envoyer la photo et les dimensions sur Messenger."},
+ {id:"P6", date:"2026-11-11", moment:"soir", type:"FORTE", intent:"RAS", kind:"reel", format:"Vidéo réelle · 20–30 s", service:"Tous", obj:"O1 · O4", img:"assets/photos/kia-porte.jpg",
+  warn:"À filmer avant mercredi. Si l'intérieur n'est pas encore vidé de ses sièges, supprimer le plan 4 et la ligne « sièges arrière retirés ». Si le tournage n'est pas prêt, inverser avec P14 (dimanche).",
+  shots:["(3 s) Plan large de la vraie Kia, de face puis de profil. Plaque cachée ou floutée.","(3 s) Une main ouvre la porte latérale coulissante, en plan serré.","(4 s) Le hayon arrière se lève.","(5 s) Depuis le hayon : espace de chargement vide, plancher beige, les deux sièges avant. Seulement si c'est la configuration réelle.","(4 s) Vous deux côte à côte, petit salut. Visages seulement avec l'accord des deux.","(5 s) Démonstration : vous soulevez à deux une boîte légère et la déposez dans la Kia.","(3 s) Carton final : « Vidéo réelle » + « Devis sur Messenger »."],
+  hook:"Pas d'image de synthèse cette fois : voici notre vraie Kia (et nous deux).",
+  caption:`Pas d'image de synthèse cette fois : voici notre vraie Kia (et nous deux). 🎥
+
+→ la porte latérale coulissante
+→ le hayon arrière
+→ l'espace de chargement, sièges arrière retirés
+→ et nous deux, parce qu'on fait la manutention à deux
+
+Vous n'avez pas besoin de porter les articles acceptés. Environ 25 kg max par morceau, pas de déménagement complet, pas d'objets très fragiles.
+
+Un transport à prévoir ? Envoyez-nous sur Messenger les photos de vos articles, leurs dimensions et leur poids, les deux adresses, la date souhaitée et les accès.
+💬 https://m.me/1481197351735657
+
+(Vidéo réelle.)
+#Montréal #Anjou`,
+  cta:"Envoyer sa demande sur Messenger."},
+ {id:"P7", date:"2026-11-12", moment:"matin", type:"LÉGÈRE", intent:"LEV", kind:"visuel", format:"Visuel existant n° 15", service:"Tous", obj:"O2", img:"assets/visuels/15.jpg",
+  imgNote:"campagne-livraison\\images\\15.png — aucun texte au « je », utilisable tel quel.",
+  hook:"C'est combien ? Voici pourquoi on ne publie pas de prix fixe.",
+  caption:`« C'est combien ? » Voici pourquoi on ne publie pas de prix fixe.
+
+Un petit transport ne demande pas le même travail selon :
+→ les articles (nombre, dimensions, poids)
+→ le trajet (adresses de départ et d'arrivée)
+→ les accès (étages, escaliers, ascenseur)
+→ les arrêts éventuels
+
+Alors on vous prépare un devis personnalisé, à convenir avant toute réservation.
+
+Envoyez-nous sur Messenger : des photos, les dimensions et le poids approximatif, les deux adresses, la date souhaitée et les accès.
+💬 https://m.me/1481197351735657
+
+Une demande de devis n'est pas une réservation : on confirme ensemble le transport, la date et les conditions.
+Deux personnes pour la manutention · environ 25 kg max par morceau.
+
+(Visuel illustratif.)
+#Montréal #PetitTransport`,
+  cta:"Demander un devis sur Messenger."},
+ {id:"P8", date:"2026-11-12", moment:"soir", type:"FORTE", intent:"CON", kind:"ia", format:"Vidéo IA V2 · 13 s", service:"A1 · A2", obj:"O4", prompt:"V2", img:"assets/photos/intro-poster.jpg",
+  hook:"Votre meuble est prêt… mais qui va le porter ?",
+  script:[["1","0–3 s","Une personne seule à côté d'un petit fauteuil léger sur le trottoir, devant un triplex en brique ; elle hausse les épaules","« Votre meuble est prêt… » puis « …mais qui va le porter ? »"],["2","3–9 s","La Kia stationnée, hayon ouvert ; deux personnes soulèvent le fauteuil ensemble et le déposent sur le plancher beige","« Nous sommes deux. » puis « Vous n'avez pas besoin de porter. »"],["3","9–11 s","Vue depuis le hayon : espace vide, plancher beige, deux sièges avant beige ; le hayon se referme","« Environ 25 kg max par morceau »"],["4","11–13 s","Carton final marine","« Écrivez-nous sur Messenger » + « Séquence illustrative »"]],
+  caption:`Votre meuble est prêt… mais qui va le porter ? 💪
+
+Pas besoin d'appeler un ami ni de louer un véhicule : nous sommes deux pour la manutention des articles acceptés. Vous n'avez pas besoin de porter.
+
+Pour obtenir votre devis, envoyez-nous un seul message sur Messenger avec :
+📸 des photos des articles
+📏 leurs dimensions et leur poids approximatif (environ 25 kg max par morceau)
+📍 les deux adresses
+📅 la date souhaitée
+🏢 les étages et l'accès aux deux adresses
+
+👉 https://m.me/1481197351735657
+
+Pas de déménagement complet ni d'objets très fragiles. Une demande de devis n'est pas une réservation.
+(Séquence illustrative créée par IA, pas une livraison réelle.)`,
+  cta:"Envoyer les 5 informations sur Messenger."},
+ {id:"P9", date:"2026-11-13", moment:"matin", type:"LÉGÈRE", intent:"ATT", kind:"visuel", format:"Visuel existant n° 01", service:"A4", obj:"Acheteur sans véhicule", img:"assets/visuels/01.jpg",
+  imgNote:"campagne-livraison\\images\\01.png — aucun texte au « je », utilisable tel quel.",
+  hook:"Votre acheteur n'a pas de véhicule ?",
+  caption:`Vous vendez des meubles ou des articles de seconde main ? Votre acheteur n'a pas de véhicule ? 🛋️
+
+Proposez-lui une livraison. Il nous écrit sur Messenger (ou vous le faites pour lui) avec la photo de l'article, ses dimensions, son poids approximatif, les deux adresses, la date souhaitée et les accès. On vérifie et on prépare un devis.
+
+→ deux personnes pour la manutention
+→ environ 25 kg max par morceau, pas d'objets très fragiles
+→ Montréal, Laval, Longueuil et environs
+
+Vous vendez souvent ? Parlez-nous de votre fréquence : chaque demande récurrente est étudiée au cas par cas.
+
+💬 https://m.me/1481197351735657
+
+(Visuel illustratif.)
+#SecondeMain #Montréal`,
+  cta:"Écrire sur Messenger, pour soi ou pour son acheteur."},
+ {id:"P10", date:"2026-11-13", moment:"soir", type:"FORTE", intent:"CON", kind:"carrousel", format:"Carrousel · 7 diapos", service:"Tous", obj:"O10 · demande compliquée ?",
+  slides:["Fond marine. Jaune : « VOTRE DEVIS EN UN SEUL MESSAGE » · blanc : « 5 infos à nous envoyer sur Messenger »","« 1. Des photos » — de chaque article (et l'annonce si vous l'avez).","« 2. Dimensions + poids » — de chaque morceau. Environ 25 kg max par morceau.","« 3. Les deux adresses » — départ et arrivée : Montréal, Laval, Longueuil et environs.","« 4. La date souhaitée » — et votre créneau idéal, à confirmer ensemble.","« 5. Les accès » — étages, escaliers, ascenseur, aux deux adresses.","Fond jaune : « Copiez ce modèle → » · « Achats · Petits déménagements partiels · Commerces et artisans » · « Deux personnes pour porter » · « m.me/1481197351735657 »"],
+  hook:"Votre devis en un seul message.",
+  caption:`Votre devis en un seul message. ✉️
+
+Copiez ce modèle, remplissez-le et envoyez-le-nous sur Messenger :
+
+« Bonjour ! J'aimerais un devis.
+Articles : …
+Dimensions et poids de chaque morceau : …
+Adresse de départ : …
+Adresse d'arrivée : …
+Date et créneau souhaités : …
+Accès (étages, escaliers, ascenseur) : … »
+
+N'oubliez pas les photos !
+
+Pour vos achats, vos petits déménagements partiels ou les livraisons de votre commerce. On est deux pour la manutention, vous n'avez pas besoin de porter. Environ 25 kg max par morceau · pas de déménagement complet · pas d'objets très fragiles.
+
+👉 https://m.me/1481197351735657
+Une demande de devis n'est pas une réservation : on confirme ensemble.`,
+  cta:"Copier le modèle et l'envoyer sur Messenger."},
+ {id:"P11", date:"2026-11-14", moment:"matin", type:"LÉGÈRE", intent:"EDU", kind:"photo", format:"Vraie photo", service:"A1", obj:"O6 · O3", img:"assets/photos/kia-porte.jpg",
+  imgNote:"Desktop\\kia\\WhatsApp1.jpeg — porte coulissante ouverte ; plaque coupée au bord gauche, à vérifier avant publication.",
+  hook:"Avant de dire oui au vendeur Marketplace, posez-lui ces 4 questions.",
+  caption:`Avant de dire oui au vendeur Marketplace, posez-lui ces 4 questions : 📝
+
+1. Quelles sont les dimensions exactes (hauteur, largeur, profondeur) ?
+2. Combien pèse l'article, à peu près ? Est-ce qu'il se démonte ?
+3. À quel étage est-il ? Y a-t-il un ascenseur ou des escaliers étroits ?
+4. Quand peut-il être récupéré, et qui sera sur place ?
+
+Avec ces réponses, on peut vérifier si votre transport convient à notre Kia et vous préparer un devis.
+
+Deux personnes s'occupent de la manutention · environ 25 kg max par morceau · pas d'objets très fragiles.
+
+Envoyez les réponses et la photo de l'annonce sur Messenger 👉 https://m.me/1481197351735657
+
+(Photo réelle de notre Kia.)
+#MarketplaceMontréal #Montréal`,
+  cta:"Envoyer les réponses du vendeur sur Messenger."},
+ {id:"P12", date:"2026-11-14", moment:"soir", type:"FORTE", intent:"ATT", kind:"ia", format:"Vidéo IA V3 · 14 s", service:"A2", obj:"O2", prompt:"V3", img:"assets/photos/intro-poster.jpg",
+  hook:"Seulement quelques articles à déplacer… et on vous parle d'un camion complet ?",
+  script:[["1","0–3 s","Couloir d'appartement : 4 boîtes fermées, une lampe, une petite chaise près de la porte","« Seulement quelques articles à déplacer ? »"],["2","3–9 s","Deux personnes portent les boîtes une à une jusqu'à la porte coulissante de la Kia et les déposent sur le plancher beige","« Petit déménagement partiel » puis « Deux personnes pour porter »"],["3","9–12 s","La Kia s'éloigne dans une rue résidentielle de Montréal (triplex en brique), fin d'automne","« Pas de déménagement complet »"],["4","12–14 s","Carton final marine","« Envoyez la liste sur Messenger » + « Séquence illustrative »"]],
+  caption:`Seulement quelques articles à déplacer… et on vous parle d'un camion complet ? 📦
+
+Quelques boîtes, une lampe, une petite chaise, une table de chevet : parfois, c'est juste une partie de vos affaires qui doit changer d'adresse.
+
+C'est ça, un petit déménagement partiel :
+→ quelques articles acceptés, compatibles avec notre minifourgonnette
+→ deux personnes pour la manutention, vous n'avez pas à porter
+→ environ 25 kg max par morceau
+→ pas de déménagement complet, même d'un petit logement
+
+Envoyez-nous sur Messenger la liste ou des photos de vos articles, leurs dimensions et leur poids, les deux adresses, la date et les accès.
+💬 https://m.me/1481197351735657
+
+(Séquence illustrative créée par IA, pas une livraison réelle.)
+#PetitDéménagement #Montréal`,
+  cta:"Envoyer la liste des articles sur Messenger."},
+ {id:"P13", date:"2026-11-15", moment:"matin", type:"LÉGÈRE", intent:"CON", kind:"visuel", format:"Visuel existant n° 16", service:"A1 · retraits", obj:"O5", img:"assets/visuels/16.jpg",
+  imgNote:"campagne-livraison\\images\\16.png — aucun texte au « je », utilisable tel quel.",
+  hook:"Un achat à récupérer cette semaine ?",
+  caption:`Un achat à récupérer cette semaine ? 🛍️
+
+Commande prête en magasin, achat chez un particulier, article trop encombrant pour votre voiture : planifiez votre transport dès maintenant.
+
+Écrivez-nous sur Messenger avec :
+→ le lieu de retrait et l'adresse de livraison
+→ la date et le créneau souhaités
+→ des photos, les dimensions et le poids approximatif de chaque morceau
+→ les accès (étages, ascenseur)
+
+On vérifie la faisabilité et nos disponibilités, puis on vous envoie un devis. Pour un retrait en magasin, le magasin doit accepter qu'un tiers récupère l'article.
+
+Deux personnes pour la manutention · environ 25 kg max par morceau · pas d'objets très fragiles.
+👉 https://m.me/1481197351735657
+
+Une demande de devis n'est pas une réservation : on confirme ensemble.
+(Visuel illustratif.)`,
+  cta:"Planifier son transport sur Messenger."},
+ {id:"P14", date:"2026-11-15", moment:"soir", type:"FORTE", intent:"CON", kind:"ia", format:"Vidéo IA existante (V4) · 11 s", service:"Tous", obj:"O1 · O3", prompt:"V4", img:"assets/photos/intro-poster.jpg",
+  hook:"Elle arrive, la porte coulisse, le hayon s'ouvre…",
+  script:[["1","0–8 s","Vidéo approuvée (arrivée, arrêt, porte coulissante, hayon, caméra qui entre jusqu'aux deux sièges avant), centrée sur un fond flouté 9:16","En haut : « Notre Kia, en version cinéma »"],["2","8–11 s","Carton final marine","« Un seul message pour votre devis → Messenger » + « Séquence illustrative »"]],
+  caption:`Elle arrive, la porte coulisse, le hayon s'ouvre… 🚐
+
+Cette séquence illustrative montre la configuration de notre Kia Sedona : sièges arrière retirés, deux sièges avant, un grand espace de chargement.
+
+Ce qu'elle ne montre pas : nous deux, qui faisons la manutention de vos articles acceptés. Vous n'avez pas besoin de porter.
+
+Un transport à planifier ? Un seul message sur Messenger suffit pour lancer votre devis :
+photos · dimensions et poids approximatif · les deux adresses · date souhaitée · étages et accès
+
+👉 https://m.me/1481197351735657
+
+Environ 25 kg max par morceau · pas de déménagement complet · pas d'objets très fragiles.
+(Séquence illustrative créée par IA, pas une livraison réelle.)`,
+  cta:"Lancer son devis sur Messenger."}
+];
+
+/* Semaine 2 — créneaux libres avec intention suggérée (règle de rotation) */
+const W2 = [["16","EDU","ATT"],["17","LEV","CON"],["18","ATT","RAS"],["19","EDU","CON"],["20","ATT","LEV"],["21","CON","ATT"],["22","RAS","CON"]];
+
+/* Semaine 3 — concepts (PASSAGE-3-PAR-JOUR.md) */
+const W3 = [
+ ["23","matin","RAS","photo","Tous","O1","Les deux personnes derrière vos petits transports.","Vraie photo du duo près de la Kia (tirée du tournage P6)."],
+ ["23","midi","EDU","imageqr","A1 · A2","O3","Avant le transport : videz les tiroirs et retirez les objets fragiles.","Image conseil."],
+ ["23","soir","CON","ia","Tous","O10","Un transport à prévoir avant décembre ? Un seul message suffit pour lancer votre devis.","Vidéo IA V5 « Votre devis en un message »."],
+ ["24","matin","ATT","visuel","A1","O3","Trop encombrant pour votre voiture ?","Visuel 17 corrigé (objet sous 25 kg)."],
+ ["24","midi","CON","visuel","A2","O5","Quelques boîtes à déplacer en fin de semaine ? Envoyez la liste et la date.","Visuel 13."],
+ ["24","soir","RAS","reel","Tous","O4","Comment on charge un petit meuble à deux.","Démonstration avec un objet à vous, pas un client."],
+ ["25","matin","LEV","imageqr","A1","O3","Ça rentre-tu ? Envoyez les 3 mesures, on vérifie.","Image Q/R."],
+ ["25","midi","EDU","photo","Tous","O2","Ce qui fait varier le prix d'un petit transport.","Liste en texte + vraie photo, sans montant."],
+ ["25","soir","CON","carrousel","A4","O10","Commerces et artisans : votre livraison locale en 5 infos.","Carrousel 6 diapos."],
+ ["26","matin","ATT","visuel","A4","—","Vous gardez la boutique. On fait la livraison.","Visuel 04 corrigé."],
+ ["26","midi","LEV","imageqr","Tous","O5","Puis-je choisir ma date ? Indiquez-la, on la confirme ensemble.","Image Q/R."],
+ ["26","soir","EDU","reel","Tous","O3","Les vraies mesures de notre Kia.","Vidéo réelle : on mesure l'ouverture du hayon et de la porte latérale. Il faut d'abord mesurer la Kia."],
+ ["27","matin","ATT","imageqr","A1","O3","Votre achat du Black Friday ne rentre pas dans l'auto ?","Image nouvelle (marine et jaune + vraie photo de la Kia)."],
+ ["27","midi","LEV","imageqr","A2","O4","Et les escaliers ? Précisez les accès, on confirme ensemble.","Image Q/R."],
+ ["27","soir","CON","ia","A1","O5","Achat en magasin ou chez un particulier : envoyez-nous le lieu, l'article et la date.","Vidéo IA V7 « Black Friday »."],
+ ["28","matin","EDU","photo","A1","O6","Marketplace : 3 réflexes avant d'aller voir l'article.","Vraie photo."],
+ ["28","midi","CON","visuel","A1","O6","Un vendeur. Une adresse. Un trajet. Envoyez les lieux sur Messenger.","Visuel 12."],
+ ["28","soir","ATT","ia","A4","Acheteur sans véhicule","Vous vendez sur Marketplace ? Proposez la livraison à vos acheteurs.","Vidéo IA V6 « Revendeurs »."],
+ ["29","matin","RAS","photo","Tous","O1","Dimanche : on prépare la Kia pour la semaine.","Vraie photo des coulisses seulement."],
+ ["29","midi","ATT","question","A1","—","Quel est l'achat le plus encombrant que vous avez dû ramener chez vous ?","Question d'engagement, texte seul."],
+ ["29","soir","CON","ia","Tous","O5","Votre transport de la semaine prochaine, on le planifie ?","Réutilisation de V1 (plus de 14 jours) avec nouvelle accroche."]
+];
+
+const PROMPTS = {
+ V1:{title:"V1 — « Comment allez-vous le ramener ? »", text:`Vertical 9:16 realistic cinematic short video, 15 seconds, natural daylight, late autumn in Montreal. Shot 1: close-up of a person's hands holding a smartphone showing a photo of a small lightweight wooden nightstand in a generic second-hand listing, no logos, no readable text, cozy apartment, shallow depth of field. Shot 2: a ${VEHICLE}, drives slowly into frame and stops at the curb; the sliding side door slides open toward the rear; no other vehicles in frame. Shot 3: two movers in plain navy t-shirts and work gloves carry a small lightweight wooden two-drawer cabinet together from the ground-floor entrance to the open rear tailgate and gently place it on the empty beige floor of the cargo area; calm, careful, realistic movements. Smooth handheld camera, soft fallen leaves on the sidewalk, overcast soft light, photorealistic, no text on screen.`},
+ V2:{title:"V2 — « Qui va le porter ? »", text:`Vertical 9:16 realistic cinematic short video, 13 seconds, late autumn daylight in Montreal. Shot 1: a single person stands alone on the sidewalk next to a small lightweight upholstered armchair in front of a brick triplex, looks around and shrugs, nobody to help. Shot 2: a ${VEHICLE}, is parked at the curb with its rear tailgate open; two movers in plain navy t-shirts and work gloves walk in, lift the small armchair together and place it on the empty beige cargo floor. Shot 3: camera at the open rear tailgate looking inside the empty cargo area toward the two beige front seats, the armchair resting on the beige floor, then the tailgate slowly closes. Photorealistic, calm movements, no other vehicles, no text on screen.`},
+ V3:{title:"V3 — « Seulement quelques articles ? »", text:`Vertical 9:16 realistic cinematic short video, 14 seconds, late autumn in Montreal. Shot 1: a bright apartment hallway near the front door with four closed medium cardboard boxes, a table lamp and a small wooden chair, soft daylight, no people. Shot 2: two movers in plain navy t-shirts and work gloves carry the cardboard boxes one at a time from a ground-floor entrance through the open sliding side door of a ${VEHICLE}, and place them on the beige floor. Shot 3: the white Kia Sedona minivan drives away slowly down the residential street lined with brick triplexes, smooth tracking shot from behind, no other vehicles. Photorealistic, calm careful movements, overcast soft light, no text on screen.`},
+ V4:{title:"V4 — Réutilisation de l'intro du site (aucune génération)", text:`Fichier source : C:\\Users\\USER\\Downloads\\Minivan_cargo_space_reveal_bb342181_1080p.mp4 (16:9, 7,96 s). Ne pas modifier l'original.
+1. Projet CapCut 9:16. Vidéo au centre, en largeur complète, sur un duplicata agrandi et flouté.
+2. Texte en haut, blanc sur bandeau #072541 : « Notre Kia, en version cinéma ».
+3. « Séquence illustrative » en bas à gauche, pendant toute la vidéo.
+4. Carton final 3 s : fond #072541, jaune « Un seul message pour votre devis → Messenger », blanc « Deux personnes pour porter · ~25 kg max par morceau ».
+5. Couper l'audio d'origine, ajouter une musique de la bibliothèque.`},
+ V7:{title:"V7 — « Black Friday » (semaine 3)", text:`Vertical 9:16 realistic cinematic short video, 12 seconds, late November in Montreal, overcast light, light dusting of snow on the curb. Shot 1: a person stands in front of a small hatchback car with its trunk open in a store parking lot, holding a medium flat cardboard box that clearly does not fit, shakes head; no store logos, no readable text. Shot 2: a ${VEHICLE}, parked at the curb with the rear tailgate open; two movers in plain navy t-shirts and work gloves carry the medium box together and place it on the empty beige cargo floor. Shot 3: the minivan drives away down the residential street, smooth tracking shot from behind. Photorealistic, calm careful movements, no other vans or trucks, no text on screen.`}
+};
+
+const VISUALS = [
+ [1,"VOTRE ACHETEUR N'A PAS DE VÉHICULE ?","ok","Revendeurs. Utilisé en S1 (P9).",""],
+ [2,"CONTINUEZ À VENDRE. JE M'OCCUPE DU TRAJET.","fix","Texte au « je ».","« ON S'OCCUPE DU TRAJET. »"],
+ [3,"PLUSIEURS VENTES. UNE TOURNÉE À ORGANISER.","care","Suggère des tournées : la récurrence est étudiée au cas par cas.","Légende obligatoire : « étudié au cas par cas »."],
+ [4,"VOUS GARDEZ LA BOUTIQUE. JE FAIS LA LIVRAISON.","fix","Texte au « je » + bouton « CONFIEZ-MOI UNE PREMIÈRE COMMANDE ».","« ON FAIT LA LIVRAISON. » + « CONFIEZ-NOUS UNE PREMIÈRE COMMANDE »"],
+ [5,"VOS LIVRAISONS ONT LEUR CRÉNEAU.","care","Suggère des créneaux fixes, non garantis.","Légende obligatoire : « étudié au cas par cas »."],
+ [6,"UNE COMMANDE À LIVRER. PERSONNE POUR LE TRAJET ?","fix","Bouton « DEMANDEZ MES DISPONIBILITÉS ».","« DEMANDEZ NOS DISPONIBILITÉS »"],
+ [7,"VOUS PRÉPAREZ L'ÉVÉNEMENT. JE TRANSPORTE LE MATÉRIEL.","fix","Texte au « je ».","« ON TRANSPORTE LE MATÉRIEL. »"],
+ [8,"LIVRER LE MATÉRIEL. PRÉVOIR AUSSI LE RETOUR.","care","L'option aller-retour n'est pas confirmée.","À éviter tant que l'aller-retour n'est pas validé."],
+ [9,"TOUT NE RENTRE PAS DANS VOTRE VÉHICULE ?","fix","Bouton « MONTREZ-MOI CE QU'IL RESTE ».","« MONTREZ-NOUS CE QU'IL RESTE »"],
+ [10,"COUP DE CŒUR TROUVÉ. TRANSPORT À TROUVER ?","ok","Achats Marketplace. Utilisé en S1 (P5).",""],
+ [11,"VOTRE ACHAT À RAMENER. LE VÉHICULE EST DÉJÀ LÀ.","fix","Sous-titre « Confiez-moi le trajet ». Vérifier le poids du meuble de rangement.","« Confiez-nous le trajet de votre achat. »"],
+ [12,"UN VENDEUR. UNE ADRESSE. UN TRAJET.","ok","Coordination Marketplace. Prévu en S3.",""],
+ [13,"QUELQUES BOÎTES. UN PETIT DÉPART.","ok","Petits déménagements partiels. Prévu en S3.",""],
+ [14,"IL RESTE ENCORE QUELQUES AFFAIRES ?","fix","Bouton « MONTREZ-MOI CE QU'IL RESTE ».","« MONTREZ-NOUS CE QU'IL RESTE »"],
+ [15,"VOTRE PETIT TRANSPORT. UN PRIX AVANT DE RÉSERVER.","ok","Objection prix. Utilisé en S1 (P7).",""],
+ [16,"UN ACHAT À RÉCUPÉRER. VOTRE TEMPS À GARDER.","ok","Retraits. Utilisé en S1 (P13).",""],
+ [17,"TROP ENCOMBRANT POUR VOTRE VOITURE ?","fix","Sous-titre « dans la mienne » + boîte de meuble probablement au-delà de 25 kg.","« Vérifions s'il rentre dans notre Kia. » + changer l'objet"],
+ [18,"UN ARTICLE À RAPPORTER ? ORGANISONS LE TRAJET.","ok","Retours en magasin (le magasin doit accepter le dépôt par un tiers).",""]
+];
+const REAL_PHOTOS = [
+ ["assets/photos/kia-profil.jpg","Kia de profil","Photo du site et de P1. Aucune plaque visible."],
+ ["assets/photos/kia-porte.jpg","Porte coulissante ouverte","Utilisée en P11. Plaque coupée au bord : vérifier."],
+ ["assets/photos/kia-avant.jpg","Kia de face","Pas de plaque à l'avant au Québec. Bonne photo de réserve."]
+];
+
+const TODOS = [
+ ["t1","Filmer la vidéo réelle de mercredi (P6) : Kia, portes, intérieur vide si c'est le cas, le duo"],
+ ["t2","Flouter la plaque sur les vraies photos avant publication"],
+ ["t3","Générer les vidéos IA V1, V2, V3 (crédits : avec ton accord)"],
+ ["t4","Monter V4 à partir de l'intro du site (CapCut, 9:16)"],
+ ["t5","Créer dans Canva : image Q/R (P3), carrousels P4 et P10"],
+ ["t6","Épingler P1 après publication"],
+ ["t7","Corriger les 8 visuels au « je » pour la semaine 2"],
+ ["t8","Décider : signer les publications « Livrego » ?"]
+];
+
+/* ───── Machine : briques de contenu ───── */
+const SEGMENTS = {
+ A1:{label:"Achats Marketplace", short:"Marketplace", service:"Livraison d'achats", items:[["une petite table de chevet","a small lightweight wooden nightstand"],["un petit fauteuil","a small lightweight upholstered armchair"],["une petite étagère","a small lightweight bookshelf"],["une commode légère","a small lightweight two-drawer cabinet"],["une lampe sur pied","a floor lamp"],["une chaise de bureau","a lightweight office chair"]], vis:[10,12,16], tags:"#MarketplaceMontréal #Montréal",
+   ctx:"L'annonce est parfaite, mais l'article ne rentre pas dans votre auto et personne n'est libre pour vous aider à le porter.", plus:"→ on étudie le ramassage chez le vendeur et la livraison chez vous",
+   hooks:["Vous avez trouvé {item} sur Marketplace… mais comment allez-vous le ramener ?","Coup de cœur trouvé : {item}. Transport à trouver ?","Le vendeur veut que {item} parte vite. Vous avez un plan ?"], tips:["vendeur","mesurer","preparer"],
+   shot1:"close-up of a person's hands holding a smartphone showing a photo of {en} in a generic second-hand listing, no logos, no readable text, cozy Montreal apartment"},
+ A2:{label:"Petits déménagements partiels", short:"Petit déménagement", service:"Petits déménagements partiels", items:[["quelques boîtes","a few medium cardboard boxes"],["une petite chaise et une lampe","a small wooden chair and a table lamp"],["un petit bureau démonté","a disassembled small desk in flat pieces"],["des valises et des sacs","suitcases and duffel bags"]], vis:[13,15], tags:"#PetitDéménagement #Montréal",
+   ctx:"Parfois, c'est juste une partie de vos affaires qui doit changer d'adresse, pas tout le logement.", plus:"→ quelques articles acceptés, pas de déménagement complet",
+   hooks:["Seulement {item} à déplacer… et on vous parle d'un camion complet ?","Pas tout un déménagement : juste {item}.","Il reste encore {item} à l'ancienne adresse ?"], tips:["preparer","acces","mesurer"],
+   shot1:"a bright Montreal apartment hallway near the front door with {en}, soft daylight, no people"},
+ A4:{label:"Commerces et artisans", short:"Commerces", service:"Livraisons pour commerces et artisans", items:[["une commande de petits meubles","a small furniture order packed in boxes"],["des boîtes de marchandise","boxes of merchandise"],["une création d'atelier","a handmade wooden side table"],["du stock pour un marché","crates of products for a market stand"]], vis:[1], tags:"#CommerceLocal #Montréal",
+   ctx:"Une commande locale à livrer pendant que vous restez à la boutique ou à l'atelier ?", plus:"→ une demande récurrente ? Elle est étudiée au cas par cas",
+   hooks:["Vous gardez la boutique. On fait la livraison.","{Item} à livrer, mais personne de libre pour le trajet ?","Une livraison locale à organiser pour votre atelier ?"], tips:["commerce","mesurer"],
+   shot1:"a small local shop counter with {en} ready for delivery, warm light, no logos, no readable text"},
+ REV:{label:"Revendeurs seconde main", short:"Revendeurs", service:"Livraisons pour commerces et artisans", items:[["un meuble vendu en ligne","a small refurbished wooden dresser"],["une table d'appoint vendue","a small side table"]], vis:[1], tags:"#SecondeMain #Montréal",
+   ctx:"Votre acheteur est prêt, mais il n'a pas de véhicule pour venir chercher l'article.", plus:"→ vous vendez souvent ? La fréquence est étudiée au cas par cas",
+   hooks:["Votre acheteur n'a pas de véhicule ?","Vous vendez {item}, mais l'acheteur ne peut pas venir le chercher ?"], tips:["commerce","mesurer"],
+   shot1:"a seller in a bright apartment taking a photo of {en} with a smartphone, no readable text"},
+ EVT:{label:"Décorateurs et événements", short:"Événements", service:"Livraisons pour commerces et artisans", items:[["des accessoires de décoration","boxes of event decorations"],["des boîtes de matériel","sturdy equipment boxes"],["des petites structures démontées","small disassembled decor stands"]], vis:[], tags:"#ÉvénementMontréal #Montréal",
+   ctx:"Le matériel est prêt, mais tout ne rentre pas dans votre véhicule.", plus:"→ chaque demande est étudiée selon le volume, le poids et les horaires",
+   hooks:["Vous préparez l'événement. On transporte {item}.","Tout ne rentre pas dans votre véhicule ? On regarde pour {item}."], tips:["commerce","mesurer"],
+   shot1:"an event venue entrance with {en} stacked near the door, warm string lights, no logos"},
+ RET:{label:"Retraits en magasin", short:"Retraits", service:"Livraison d'achats", items:[["une commande prête en magasin","a flat-pack box picked up from a store"],["un article trop encombrant pour l'auto","a bulky but lightweight box"]], vis:[16,18], tags:"#Montréal #Laval",
+   ctx:"Commande prête en magasin ou achat chez un particulier : il reste à le ramener.", plus:"→ pour un retrait en magasin, le magasin doit accepter qu'un tiers récupère l'article",
+   hooks:["Un achat à récupérer cette semaine ?","{Item} : trop encombrant pour votre voiture ?"], tips:["mesurer","preparer"],
+   shot1:"a person next to a small hatchback with the trunk open in a store parking lot, holding {en} that clearly does not fit, no store logos"}
+};
+const TIPS = {
+ mesurer:{hook:"Ça rentre-tu dans la Kia ? Préparez votre demande en 2 minutes.", list:["Mesurez la longueur, la largeur et la hauteur, au point le plus large","Notez le poids approximatif de chaque morceau (environ 25 kg max par morceau)","Dites-nous si l'article se démonte","Photographiez les accès : escaliers, portes, ascenseur"]},
+ vendeur:{hook:"Avant de dire oui au vendeur Marketplace, posez-lui ces 4 questions.", list:["Quelles sont les dimensions exactes ?","Combien pèse l'article, à peu près ? Est-ce qu'il se démonte ?","À quel étage est-il ? Ascenseur ou escaliers étroits ?","Quand peut-il être récupéré, et qui sera sur place ?"]},
+ acces:{hook:"Escaliers, ascenseur, couloir étroit : quelles photos nous envoyer ?", list:["L'entrée de l'immeuble aux deux adresses","Les escaliers (et leur largeur) ou l'ascenseur","Les portes et couloirs les plus étroits","L'endroit où la Kia peut se stationner, si vous le savez"]},
+ preparer:{hook:"Avant le transport : 4 gestes qui simplifient tout.", list:["Videz les tiroirs et les tablettes","Retirez les objets fragiles et le verre","Regroupez les petits objets dans des boîtes fermées","Notez le poids de chaque morceau (environ 25 kg max par morceau)"]},
+ commerce:{hook:"Commerçants : ce qu'il faut préparer pour une livraison locale.", list:["La liste des marchandises et leur quantité","Les dimensions et le poids de chaque morceau","Les adresses de départ et d'arrivée","Le créneau souhaité et, si c'est récurrent, la fréquence"]},
+ prix:{hook:"Ce qui fait varier le prix d'un petit transport.", list:["Les articles : nombre, dimensions, poids","Le trajet : adresses de départ et d'arrivée","Les accès : étages, escaliers, ascenseur","Les arrêts éventuels"]}
+};
+const HOOKS_RAS = ["Voici la vraie Kia qui transporte vos achats.","Les deux personnes derrière vos petits transports.","Comment on charge un petit meuble à deux.","Pas d'image de synthèse : voici notre vraie Kia."];
+/* Rassurer avec un contenu IA : jamais « voici la vraie… », on explique le déroulement */
+const HOOKS_RAS_IA = ["Comment ça se passe, du premier message à la livraison ?","Du message Messenger à votre porte : voici les étapes."];
+const RAS_IA_BODY = "1. Vous envoyez photos, mesures, adresses, date et accès.\n2. On vérifie la compatibilité avec la Kia et les accès.\n3. On vous prépare un devis personnalisé.\n4. On confirme ensemble, puis deux personnes s'occupent de la manutention.";
+const HOOKS_LEV = {O1:"Nouvelle page, pas encore d'avis : voici comment on travaille.", O2:"C'est combien ? Voici ce qui fait varier le prix.", O3:"Ça rentre-tu ? Envoyez les 3 mesures, on vérifie.", O4:"Dois-je aider à porter ? Non.", O5:"Puis-je choisir ma date ? Indiquez-la, on la confirme ensemble.", O6:"Qui parle au vendeur ? Voici ce qu'il faut prévoir."};
+const LEV_BODY = {
+ O1:"Pas d'avis à montrer pour l'instant : alors on vous montre tout le reste. La vraie Kia, nos limites et la façon dont on prépare chaque devis avant de confirmer quoi que ce soit.",
+ O2:"Le prix dépend des articles, du trajet, des accès et des arrêts éventuels. On vous prépare un devis personnalisé, à convenir avant toute réservation.",
+ O3:"Une photo seule ne suffit pas : envoyez la longueur, la largeur, la hauteur et le poids approximatif de chaque morceau. On vérifie la compatibilité avec la Kia et les accès.",
+ O4:"Nous sommes deux pour la manutention des articles acceptés. Les escaliers, les étages et les ascenseurs dépendent des articles : précisez-les dans votre demande, on confirme ensemble.",
+ O5:"Indiquez la date et le créneau souhaités dans votre message. On vérifie nos disponibilités et on confirme ensemble : une demande de devis ne réserve pas un créneau.",
+ O6:"Indiquez qui donne accès à l'article et qui le reçoit. La présence aux deux adresses se précise dans votre demande, avant toute confirmation."
+};
+const HOOKS_CON = ["Un transport à prévoir cette semaine ? Un seul message suffit.","Votre devis en un seul message.","{Item} à transporter ? Envoyez-nous les 5 infos.","Planifiez votre transport avant la fin de semaine."];
+const QUESTIONS = ["Quel est l'achat le plus encombrant que vous avez dû ramener chez vous ?","Marketplace : vous avez déjà renoncé à un achat faute de transport ?","Escaliers en colimaçon, 3e étage sans ascenseur : votre pire souvenir de déménagement ?","Vous préférez mesurer avant d'acheter ou croiser les doigts ?"];
+
+/* ═════════════════════════ OUTILS ═════════════════════════ */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function dateOf(iso, time){ const [y,m,d] = iso.split("-").map(Number); const [h,mi] = time.split(":").map(Number); return new Date(y, m-1, d, h, mi); }
+function fmtTime(t){ const [h,m] = t.split(":"); return `${Number(h)} h ${m}`; }
+function dayLabel(iso){ const d = dateOf(iso,"12:00"); return `${DAYS[d.getDay()]} ${String(d.getDate()).padStart(2,"0")}`; }
+function dayLong(iso){ const d = dateOf(iso,"12:00"); return `${cap(DAYS_LONG[d.getDay()])} ${d.getDate()} nov.`; }
+function uid(){ return "i" + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function barcode(id){
+  let h = 0; for (const ch of id) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  const parts = []; let x = 0;
+  for (let i=0; i<26; i++){ h = (h*1103515245 + 12345) >>> 0; const w = 1 + (h % 3); const gap = 1 + ((h>>4) % 2); parts.push(`#0a2340 ${x}px ${x+w}px`, `transparent ${x+w}px ${x+w+gap}px`); x += w + gap; }
+  return `linear-gradient(90deg, ${parts.join(",")})`;
+}
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove("show"), 2400); }
+async function copyText(text, el){
+  try { await navigator.clipboard.writeText(text); toast("Copié dans le presse-papiers"); }
+  catch(e){
+    const box = el && el.closest(".copyable") ? el.closest(".copyable").querySelector("pre, textarea") : null;
+    if (box){ const r = document.createRange(); r.selectNodeContents(box); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    toast("Texte sélectionné : fais Ctrl+C");
+  }
+}
+
+/* ═════════════════════════ CONFORMITÉ ═════════════════════════ */
+function checkCaption(text, kind){
+  const t = String(text || "");
+  const res = [];
+  const add = (id,label,level,detail) => res.push({id,label,level,detail});
+  add("msg","Lien Messenger exact", t.includes("m.me/1481197351735657") ? "ok" : "err", "Le seul appel à l'action : https://m.me/1481197351735657");
+  add("duo","Le duo est mentionné", /deux personnes|nous sommes deux|on est deux|nous deux|à deux/i.test(t) ? "ok" : "err", "« Deux personnes pour la manutention : vous n'avez pas besoin de porter. »");
+  add("kg","Limite de 25 kg par morceau", /25\s?kg/i.test(t) ? "ok" : "err", "« Environ 25 kg max par morceau »");
+  const forb = [];
+  const rx = [[/\d+\s?\$|\$\s?\d+|\d+\s?dollars?/i,"un prix"],[/gratuit/i,"« gratuit »"],[/assur(ance|ée?s?)(?![a-zàâçéèêëîïôûùüÿœ])/i,"une assurance"],[/\b24\s?h\b|24\/7|jour même|aujourd'hui même|en 1 ?h(eure)?\b|immédiat/i,"un délai promis"],[/le moins cher|meilleur prix|prix le plus bas/i,"un superlatif de prix"],[/\d+\s?(étoiles|clients satisfaits)/i,"un faux avis"]];
+  for (const [r,lab] of rx){ if (r.test(t)) forb.push(lab); }
+  for (const m of t.matchAll(/garanti\w*/gi)){ const before = t.slice(Math.max(0, m.index - 14), m.index).toLowerCase(); if (!/(pas|aucun|aucune|ni|sans)\s+(de\s+)?$/.test(before) && !/pas\s+\S+\s+$/.test(before)){ forb.push("une garantie"); break; } }
+  add("forb","Aucun interdit", forb.length ? "err" : "ok", forb.length ? "Trouvé : " + forb.join(", ") + "." : "Pas de prix, « gratuit », assurance, délai ou disponibilité garantis.");
+  const links = (t.match(/https?:\/\/\S+|www\.\S+|livrego\.ca/gi) || []).filter(u => !u.includes("m.me/1481197351735657"));
+  add("link","Aucun autre lien", links.length ? "err" : "ok", links.length ? "Retirer : " + links.join(" ") : "Pas de lien vers le site.");
+  const solo = t.replace(/«[^»]*»/g," ").replace(/\b\w+-je\b/gi," ").match(/\b(je|j'|j’|moi|mon|ma|mes)\b/gi);
+  add("solo","Pas de « je » d'entreprise", solo ? "warn" : "ok", solo ? "À relire : « " + Array.from(new Set(solo.map(s=>s.toLowerCase()))).join(" », « ") + " ». On est deux : « nous » / « on »." : "Ton au « nous », le duo est cohérent.");
+  const veh = t.match(/camion|cargo van|fourgonnette commerciale|dodge|pick-?up/gi);
+  add("veh","Seulement la Kia", veh ? "warn" : "ok", veh ? "Mention de « " + veh[0] + " » : acceptable seulement comme comparaison, jamais à l'image." : "Aucun autre véhicule évoqué.");
+  if (kind === "ia") add("lab","Étiquette IA", /séquence illustrative/i.test(t) ? "ok" : "err", "Ajouter « (Séquence illustrative créée par IA, pas une livraison réelle.) »");
+  else if (kind === "visuel") add("lab","Étiquette du visuel IA", /visuel illustratif/i.test(t) ? "ok" : "err", "Ajouter « (Visuel illustratif.) »");
+  else if (kind === "photo") add("lab","Photo réelle annoncée", /photo réelle/i.test(t) ? "ok" : "warn", "Ajouter « (Photo réelle de notre Kia.) »");
+  else if (kind === "reel") add("lab","Vidéo réelle annoncée", /vidéo réelle/i.test(t) ? "ok" : "warn", "Ajouter « (Vidéo réelle.) »");
+  add("excl","Exclusions rappelées", /déménagement complet|très fragiles/i.test(t) ? "ok" : "info", "Recommandé : « pas de déménagement complet ni d'objets très fragiles ».");
+  return res;
+}
+function scoreOf(res){ const scored = res.filter(r => r.level !== "info"); const ok = scored.filter(r => r.level === "ok").length; return {ok, total:scored.length, err:res.filter(r=>r.level==="err").length, warn:res.filter(r=>r.level==="warn").length}; }
+function miniChecks(res){
+  return res.filter(r=>r.level!=="info").map(r => `<span class="mc ${r.level==="err"?"bad":r.level==="warn"?"warn":""}" title="${esc(r.detail)}">${r.level==="ok"?"✓":r.level==="err"?"✗":"!"} ${esc(r.label)}</span>`).join("");
+}
+
+/* ═════════════════════════ ÉTAT + STOCKAGE ═════════════════════════ */
+const LS_KEY = "dispatch-lmpt-v1";
+const Store = {
+  mode:"loading", db:null, canWrite:true, loaded:false,
+  state:{statuses:{}, todos:{}},
+  ideas:new Map(),
+  writing:false, dirty:false,
+  loadLocal(){ try { const raw = localStorage.getItem(LS_KEY); if (raw){ const d = JSON.parse(raw); this.state = {statuses:d.statuses||{}, todos:d.todos||{}}; this.ideas = new Map((d.ideas||[]).map(i=>[i.id,i])); } } catch(e){} },
+  saveLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify({statuses:this.state.statuses, todos:this.state.todos, ideas:Array.from(this.ideas.values())})); } catch(e){} },
+  async init(){
+    this.loadLocal(); renderAll();
+    let db = null, user = null;
+    try { db = (window.claude && claude.use) ? await claude.use("db") : null; } catch(e){ db = null; }
+    if (!db){ this.mode = "local"; updateSync(); return; }
+    try { user = await claude.use("user"); } catch(e){ user = null; }
+    let owner = null; try { owner = user ? await user.isOwner() : null; } catch(e){ owner = null; }
+    this.db = db; this.canWrite = owner !== false; this.mode = this.canWrite ? "db" : "ro";
+    this.state = {statuses:{}, todos:{}}; this.ideas = new Map(); renderAll(); updateSync();
+    const timer = setTimeout(()=>{ if (!this.loaded){ setSync("off","Données lentes à répondre"); } }, 10000);
+    db.doc("planner/state").onSnapshot(snap => {
+      if (!snap.metadata.fromCache){ this.loaded = true; clearTimeout(timer); }
+      if (snap.exists){ const d = snap.data() || {}; if (!this.writing && !this.dirty) this.state = {statuses:{...(d.statuses||{})}, todos:{...(d.todos||{})}}; }
+      renderAll(); updateSync();
+    }, err => { clearTimeout(timer); this.fallback(err); });
+    db.collection("ideas").onSnapshot(qs => {
+      this.ideas = new Map(qs.docs.map(d => [d.id, {id:d.id, ...d.data()}]));
+      renderAll();
+    }, err => this.fallback(err));
+  },
+  fallback(err){ this.db = null; this.mode = "local"; this.loadLocal(); renderAll(); updateSync(); toast("Synchronisation indisponible : sauvegarde sur cet appareil"); },
+  readOnly(){ this.canWrite = false; this.mode = "ro"; updateSync(); toast("Lecture seule : seul le propriétaire enregistre des changements"); },
+  guard(){ if (this.mode === "ro"){ toast("Lecture seule : seul le propriétaire enregistre des changements"); return false; } return true; },
+  setStatus(key, v){ if (!this.guard()) return; if (v === "todo") delete this.state.statuses[key]; else this.state.statuses[key] = v; this.persistState(); },
+  toggleTodo(k, on){ if (!this.guard()) return; if (on) this.state.todos[k] = true; else delete this.state.todos[k]; this.persistState(); },
+  persistState(){
+    if (!this.db){ this.saveLocal(); return; }
+    this.dirty = true; clearTimeout(this._t); this._t = setTimeout(()=>this.flush(), 450);
+  },
+  async flush(){
+    if (this.writing){ this.dirty = true; return; }
+    this.writing = true; this.dirty = false;
+    try { await this.db.doc("planner/state").set({statuses:{...this.state.statuses}, todos:{...this.state.todos}, updatedAt:Date.now()}); }
+    catch(e){ if (e && e.code === "invalid_argument") this.readOnly(); else toast("Enregistrement impossible pour l'instant"); }
+    this.writing = false;
+    if (this.dirty) this.flush();
+  },
+  async saveIdea(idea){
+    if (!this.guard()) return false;
+    const clean = JSON.parse(JSON.stringify(idea)); delete clean.temp; delete clean.checks; delete clean._fresh;
+    this.ideas.set(clean.id, clean);
+    if (!this.db){ this.saveLocal(); renderAll(); return true; }
+    try { await this.db.collection("ideas").doc(clean.id).set(clean); return true; }
+    catch(e){ if (e && e.code === "invalid_argument") this.readOnly(); else if (e && e.code === "quota_exceeded") toast("Banque pleine : supprime quelques idées"); else toast("Enregistrement impossible pour l'instant"); return false; }
+  },
+  async patchIdea(id, patch){
+    if (!this.guard()) return;
+    const cur = this.ideas.get(id); if (!cur) return;
+    Object.assign(cur, patch);
+    if (!this.db){ this.saveLocal(); renderAll(); return; }
+    try { await this.db.collection("ideas").doc(id).update(patch); } catch(e){ if (e && e.code === "invalid_argument") this.readOnly(); }
+  },
+  async deleteIdea(id){
+    if (!this.guard()) return;
+    this.ideas.delete(id);
+    if (!this.db){ this.saveLocal(); renderAll(); return; }
+    try { await this.db.collection("ideas").doc(id).delete(); } catch(e){ toast("Suppression impossible pour l'instant"); }
+  },
+  ideaAt(slot){ for (const i of this.ideas.values()) if (i.slot === slot) return i; return null; }
+};
+function setSync(s, label){ const c = $("#sync-chip"); c.dataset.s = s; c.querySelector("span").textContent = label; }
+function updateSync(){
+  if (Store.mode === "db") setSync("ok", Store.loaded ? "Synchronisé" : "Synchronisation…");
+  else if (Store.mode === "ro") setSync("ro", "Lecture seule");
+  else if (Store.mode === "local") setSync("local", "Sur cet appareil");
+  else setSync("load", "Connexion…");
+}
+
+/* ═════════════════════════ CRÉNEAUX ═════════════════════════ */
+function buildSlots(){
+  const all = [];
+  POSTS.forEach((p,i) => all.push({key:`${p.date}|${p.moment}`, week:1, date:p.date, moment:p.moment, time:MOMENTS[p.moment].time, type:p.type, base:p, kind:"post", n:i}));
+  W2.forEach(([d, m, s], i) => {
+    const date = `2026-11-${d}`;
+    all.push({key:`${date}|matin`, week:2, date, moment:"matin", time:"07:30", type:"LÉGÈRE", kind:"slot", suggest:m, n:i*2, code:`S2-${String(i*2+1).padStart(2,"0")}`});
+    all.push({key:`${date}|soir`, week:2, date, moment:"soir", time:"19:30", type:"FORTE", kind:"slot", suggest:s, n:i*2+1, code:`S2-${String(i*2+2).padStart(2,"0")}`});
+  });
+  W3.forEach((r, i) => {
+    const [d, m, intent, kind, service, obj, hook, note] = r;
+    const date = `2026-11-${d}`;
+    all.push({key:`${date}|${m}`, week:3, date, moment:m, time:MOMENTS[m].time, type:m==="soir"?"FORTE":"LÉGÈRE", kind:"concept", n:i, code:`S3-${String(i+1).padStart(2,"0")}`,
+      base:{intent, kind, service, obj, hook, note, format:FORMATS[kind].label}});
+  });
+  return all;
+}
+const SLOTS = buildSlots();
+function view(slot){
+  const idea = Store.ideaAt(slot.key);
+  if (idea) return {src:"idea", idea, intent:idea.intent, kind:idea.kind, hook:idea.hook, format:FORMATS[idea.kind] ? FORMATS[idea.kind].label : idea.kind, service:idea.segLabel || "", obj:idea.obj || "", code:slot.week===1 ? slot.base.id : (slot.code || "S2"), caption:idea.caption};
+  if (slot.kind === "post") return {src:"post", intent:slot.base.intent, kind:slot.base.kind, hook:slot.base.hook, format:slot.base.format, service:slot.base.service, obj:slot.base.obj, code:slot.base.id, caption:slot.base.caption};
+  if (slot.kind === "concept") return {src:"concept", intent:slot.base.intent, kind:slot.base.kind, hook:slot.base.hook, format:slot.base.format, service:slot.base.service, obj:slot.base.obj, code:slot.code};
+  return {src:"empty", intent:slot.suggest, kind:null, hook:"Créneau libre", format:slot.type === "FORTE" ? "Vidéo IA, réelle ou carrousel" : "Photo, visuel ou question", service:"", obj:"", code:slot.code || "S2"};
+}
+function statusOf(key){ return Store.state.statuses[key] || "todo"; }
+const ST_LABEL = {todo:"À produire", ready:"Prêt", done:"Publié"};
+const NEXT_ST = {todo:"ready", ready:"done", done:"todo"};
+
+/* ═════════════════════════ RENDU : HÉROS, ROUTE ═════════════════════════ */
+function renderKpis(){
+  const counts = {todo:0, ready:0, done:0};
+  SLOTS.forEach(s => { const v = view(s); if (v.src === "empty") return; counts[statusOf(s.key)]++; });
+  const planned = SLOTS.filter(s => view(s).src !== "empty").length;
+  const bank = Array.from(Store.ideas.values()).filter(i => !i.slot).length;
+  $("#kpis").innerHTML = `
+    <div class="kpi"><b>${planned}</b><span>publications planifiées sur ${SLOTS.length} créneaux</span></div>
+    <div class="kpi k-ready"><b>${counts.ready}</b><span>prêtes à partir</span></div>
+    <div class="kpi k-done"><b>${counts.done}</b><span>publiées</span></div>
+    <div class="kpi"><b>${bank}</b><span>idées en banque</span></div>`;
+}
+function renderRoute(){
+  const days = []; for (let i=0;i<21;i++){ const d = new Date(2026,10,9+i); days.push(d); }
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  $("#stops").innerHTML = days.map((d,i) => {
+    const iso = `2026-11-${String(d.getDate()).padStart(2,"0")}`;
+    const daySlots = SLOTS.filter(s => s.date === iso);
+    const parcels = daySlots.map(s => { const v = view(s); const st = statusOf(s.key); const cls = v.src === "empty" ? "free" : (st === "todo" ? "" : st); return `<span class="parcel ${cls}" data-tip="${esc(`${MOMENTS[s.moment].label} ${fmtTime(s.time)} · ${v.src==="empty"?"créneau libre":ST_LABEL[st]} · ${v.hook}`)}"></span>`; }).join("");
+    return `<div class="stop ${iso===todayIso?"today":""}"><span class="pin"></span><span class="d">${DAYS[d.getDay()]} ${d.getDate()}</span><span class="parcels">${parcels}</span></div>`;
+  }).join("") + `<span class="weekmark" style="left:0%">S1</span><span class="weekmark" style="left:33.33%">S2</span><span class="weekmark" style="left:66.66%">S3</span>`;
+  const start = START.getTime(), end = new Date(2026,10,30).getTime();
+  let p = (now.getTime() - start) / (end - start);
+  let label;
+  if (p < 0){ p = 0; label = "Au dépôt · départ lundi"; } else if (p > 1){ p = 1; label = "Arrivée · fin du plan"; } else label = "Aujourd'hui";
+  let van = $("#van"), vl = $("#van-label");
+  if (!van){
+    $("#route").insertAdjacentHTML("beforeend", `<svg id="van" class="van" viewBox="0 0 58 34" aria-hidden="true"><path d="M3 23V15c0-1.4.7-2.7 1.9-3.5l6.4-4.3c.9-.6 1.9-.9 3-.9h24.4c1.7 0 3.2 1 3.9 2.5l3.6 7.3c.5 1 .8 2.1.8 3.2V23c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2Z" fill="#f2f5f8"/><path d="M14 9h8v7H9.5L14 9Zm10 0h12.6c.8 0 1.5.5 1.9 1.2l2.7 5.8H24V9Z" fill="#072541"/><rect x="0" y="18" width="4" height="3" rx="1" fill="#ffd521"/><circle cx="14" cy="25" r="4.6" fill="#04121f" stroke="#a8bcd0" stroke-width="2"/><circle cx="41" cy="25" r="4.6" fill="#04121f" stroke="#a8bcd0" stroke-width="2"/></svg><span id="van-label" class="van-label"></span>`);
+    van = $("#van"); vl = $("#van-label");
+    van.style.left = "30px"; vl.style.left = "0px";
+  }
+  const place = () => { van.style.left = `calc(${(p*100).toFixed(2)}% + ${p < 0.04 ? 30 : 0}px)`; vl.style.left = p < 0.04 ? "0px" : van.style.left; vl.classList.toggle("start", p < 0.04); };
+  if (van.dataset.placed) place(); else { van.dataset.placed = "1"; requestAnimationFrame(() => requestAnimationFrame(place)); }
+  vl.textContent = label;
+}
+let nextSlot = null;
+function tick(){
+  const now = new Date();
+  const sorted = SLOTS.slice().sort((a,b) => dateOf(a.date,a.time) - dateOf(b.date,b.time));
+  nextSlot = sorted.find(s => dateOf(s.date,s.time) > now && view(s).src !== "empty") || null;
+  if (!nextSlot){ $("#next-meta").textContent = "Plan terminé"; $("#next-hook").textContent = "Toutes les publications du plan sont passées."; return; }
+  const v = view(nextSlot);
+  $("#next-meta").textContent = `${v.code} · ${dayLong(nextSlot.date)} · ${fmtTime(nextSlot.time)} · ${nextSlot.type}`;
+  $("#next-hook").textContent = v.hook;
+  let ms = dateOf(nextSlot.date, nextSlot.time) - now; if (ms < 0) ms = 0;
+  const d = Math.floor(ms/864e5), h = Math.floor(ms/36e5)%24, m = Math.floor(ms/6e4)%60, s = Math.floor(ms/1e3)%60;
+  $("#f-d").textContent = String(d).padStart(2,"0"); $("#f-h").textContent = String(h).padStart(2,"0"); $("#f-m").textContent = String(m).padStart(2,"0"); $("#f-s").textContent = String(s).padStart(2,"0");
+}
+
+/* ═════════════════════════ RENDU : CALENDRIER ═════════════════════════ */
+const UI = {view:"calendrier", week:1, filters:new Set(INTENT_ORDER), drawerKey:null, visFilter:"all", results:[]};
+const WEEK_DESC = {
+  1:"Semaine de lancement : 14 publications complètes, 2 par jour. Clique sur une étiquette pour la légende, le script et le prompt. Clique sur le statut pour le faire avancer.",
+  2:"14 créneaux libres, avec l'intention suggérée par la règle de rotation. Remplis-les un par un ou d'un coup avec la machine.",
+  3:"Passage à 3 publications par jour : 21 concepts (dont le Black Friday du 27). Développe chaque concept en publication complète."
+};
+function renderToolbar(){
+  const tb = $("#cal-toolbar");
+  const chips = INTENT_ORDER.map(k => `<button class="filter-chip" type="button" data-intent="${k}" aria-pressed="${UI.filters.has(k)}"><i style="background:${INTENTS[k].c}"></i>${INTENTS[k].label}</button>`).join("");
+  const fill = UI.week === 2 ? `<button class="btn primary sm" type="button" id="fill-w2">Remplir la semaine 2 avec la machine</button>` : "";
+  tb.innerHTML = chips + `<span style="flex:1"></span>` + fill;
+}
+function labelCard(slot, i){
+  const v = view(slot); const st = statusOf(slot.key); const I = INTENTS[v.intent] || INTENTS.ATT;
+  const hidden = !UI.filters.has(v.intent);
+  if (hidden) return `<div class="cell is-blank"><div class="cell-empty" title="Filtré"></div></div>`;
+  const when = `${dayLabel(slot.date)} · ${slot.time.replace(":", "h")}`;
+  if (v.src === "empty"){
+    return `<div class="cell"><article class="lbl slot-empty" style="--n:${i}">
+      <button class="lbl-open" type="button" data-key="${slot.key}" aria-label="Créneau libre ${esc(when)}, ouvrir"></button>
+      <span class="lbl-top"><b>LIBRE</b><span>${when}</span></span>
+      <span class="lbl-chips"><span class="ichip" style="--dot:${I.c}"><i></i>${I.short}</span><span class="tchip">${slot.type}</span></span>
+      <span class="lbl-hook">Suggestion : ${slot.type === "FORTE" ? "vidéo IA, vidéo réelle ou carrousel" : "vraie photo, visuel ou question"}.</span>
+      <span class="lbl-foot"><span class="fmt">＋ Remplir ce créneau</span></span>
+    </article></div>`;
+  }
+  const f = FORMATS[v.kind] || {icon:"•"};
+  const cls = ["lbl", st === "done" ? "is-done" : "", v.src === "concept" ? "concept" : ""].join(" ");
+  return `<div class="cell"><article class="${cls}" style="--stripe:${I.l};--n:${i}">
+    <button class="lbl-open" type="button" data-key="${slot.key}" aria-label="${esc(v.code)}, ${esc(when)} : ${esc(v.hook)}"></button>
+    <span class="lbl-top"><b>${esc(v.code)}${v.src==="idea"?" · idée":""}</b><span>${when}</span></span>
+    <span class="lbl-chips"><span class="ichip" style="--dot:${I.l}"><i></i>${I.short}</span><span class="tchip ${slot.type==="FORTE"?"forte":""}">${slot.type}</span></span>
+    <span class="lbl-hook">${esc(v.hook)}</span>
+    <span class="lbl-foot"><span class="fmt">${f.icon} ${esc(v.format)}</span><button class="st" type="button" data-st="${slot.key}" data-v="${st}" aria-label="Statut : ${ST_LABEL[st]}. Passer au suivant">${ST_LABEL[st]}</button></span>
+    <span class="barcode" style="background:${barcode(slot.key)}"></span>
+    ${st === "done" ? `<span class="stamp">PUBLIÉ</span>` : ""}
+  </article></div>`;
+}
+function renderBoard(anim){
+  $("#week-desc").textContent = WEEK_DESC[UI.week];
+  $$(".seg [data-week]").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.week) === UI.week)));
+  renderToolbar();
+  const wk = SLOTS.filter(s => s.week === UI.week);
+  const dates = Array.from(new Set(wk.map(s => s.date)));
+  const moments = UI.week === 3 ? ["matin","midi","soir"] : ["matin","soir"];
+  const now = new Date(); const todayIso = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  let html = `<div class="corner"></div>` + dates.map(d => `<div class="dayhead ${d===todayIso?"is-today":""}">${DAYS[dateOf(d,"12:00").getDay()]}<b>${dateOf(d,"12:00").getDate()} NOV.</b></div>`).join("");
+  // desktop grid: rows = moments ; mobile: grouped by day (order via CSS grid-row is complex, so we output both orders)
+  let n = 0;
+  moments.forEach(m => {
+    html += `<div class="momhead"><b>${MOMENTS[m].label}</b>${fmtTime(MOMENTS[m].time)}</div>`;
+    dates.forEach(d => { const s = wk.find(x => x.date === d && x.moment === m); html += s ? labelCard(s, n++) : `<div class="cell is-blank"><div class="cell-empty"></div></div>`; });
+  });
+  const board = $("#board");
+  board.innerHTML = html;
+  board.dataset.week = UI.week;
+  if (anim && !reduceMotion){ board.classList.remove("anim"); void board.offsetWidth; board.classList.add("anim"); clearTimeout(renderBoard._t); renderBoard._t = setTimeout(() => board.classList.remove("anim"), 1400); }
+  applyMobileOrder(board, dates, moments);
+  renderRail(wk);
+}
+function applyMobileOrder(board, dates, moments){
+  // Narrow screens: one column, cells reordered by day (CSS order) under a heading per day. Wide screens: grid order untouched.
+  board.querySelectorAll(".daygroup").forEach(e => e.remove());
+  const cells = $$(".cell", board);
+  if (matchMedia("(min-width:981px)").matches){ cells.forEach(c => c.style.order = ""); return; }
+  dates.forEach((d, di) => { const h = document.createElement("div"); h.className = "daygroup"; h.textContent = dayLong(d); h.style.order = String(di*10); board.appendChild(h); });
+  let idx = 0;
+  moments.forEach((m, mi) => dates.forEach((d, di) => { const c = cells[idx++]; if (c) c.style.order = String(di*10 + mi + 1); }));
+}
+function renderRail(wk){
+  const items = wk.map(s => ({s, v:view(s)}));
+  const counts = {}; INTENT_ORDER.forEach(k => counts[k] = 0);
+  items.forEach(({v}) => { if (counts[v.intent] !== undefined) counts[v.intent]++; });
+  const total = items.length;
+  const seg = INTENT_ORDER.filter(k => counts[k] > 0).map(k => {
+    const pct = counts[k]/total*100;
+    return `<div style="flex:${counts[k]};background:${INTENTS[k].c}" data-tip="${esc(`${INTENTS[k].label} : ${counts[k]} publication${counts[k]>1?"s":""} (${Math.round(pct)} %)`)}" tabindex="0">${pct >= 9 ? counts[k] : ""}</div>`;
+  }).join("");
+  const grp = [["Attirer + éduquer", counts.ATT + counts.EDU, 40],["Rassurer + lever", counts.RAS + counts.LEV, 30],["Convertir", counts.CON, 30]];
+  const rows = grp.map(([lab, c, target]) => { const p = Math.round(c/total*100); const d = p - target; return `<div class="trow"><span>${lab} <small>· ${c}</small></span><span><b>${p} %</b> <small class="${Math.abs(d) <= 5 ? "delta-ok" : "delta-warn"}">cible ${target} %</small></span></div>`; }).join("");
+  const objs = new Set(); items.forEach(({v}) => { (String(v.obj).match(/O[1-6]/g) || []).forEach(o => objs.add(o)); });
+  const svc = {"Achats (A1)":0, "Petits déménagements (A2)":0, "Commerces (A4)":0, "Tous les services":0};
+  items.forEach(({v}) => { const t = String(v.service); if (/Tous/.test(t)) svc["Tous les services"]++; if (/A1|Marketplace|achat|Retrait|retrait/i.test(t)) svc["Achats (A1)"]++; if (/A2|déménagement/i.test(t)) svc["Petits déménagements (A2)"]++; if (/A4|Commerce|Revendeur|Événement/i.test(t)) svc["Commerces (A4)"]++; });
+  const maxSvc = Math.max(1, ...Object.values(svc));
+  const svcRows = Object.entries(svc).sort((a,b)=>b[1]-a[1]).map(([k,c]) => `<div class="hbar" data-tip="${esc(`${k} : ${c}`)}"><span>${k}</span><span class="track"><span class="fill" style="display:block;width:${c/maxSvc*100}%"></span></span><b>${c}</b></div>`).join("");
+  const st = {todo:0, ready:0, done:0}; let free = 0;
+  items.forEach(({s,v}) => { if (v.src === "empty") free++; else st[statusOf(s.key)]++; });
+  const stTotal = st.todo + st.ready + st.done + free;
+  const thin = [["todo","#4b6580"],["ready","var(--yellow)"],["done","var(--good)"]].map(([k,c]) => st[k] ? `<div style="flex:${st[k]};background:${c}" data-tip="${ST_LABEL[k]} : ${st[k]}"></div>` : "").join("") + (free ? `<div style="flex:${free};background:repeating-linear-gradient(45deg,#1a3a5c 0 4px,#0b3158 4px 8px)" data-tip="Créneaux libres : ${free}"></div>` : "");
+  const todos = UI.week === 1 ? `<div class="panel"><h3>Avant lundi</h3><p class="sub">Production de la semaine 1</p><ul class="todo-list">${TODOS.map(([k,t]) => `<li><label><input type="checkbox" id="todo-${k}" data-todo="${k}" ${Store.state.todos[k]?"checked":""}><span>${esc(t)}</span></label></li>`).join("")}</ul></div>` : "";
+  $("#rail").innerHTML = `
+    <div class="panel"><h3>Manifeste</h3><p class="sub">Dosage prévu de la semaine ${UI.week} · ${total} créneaux</p>
+      <div class="segbar" role="img" aria-label="Répartition des intentions">${seg}</div>
+      <div class="legend">${INTENT_ORDER.map(k => `<span><i style="background:${INTENTS[k].c}"></i>${INTENTS[k].label}</span>`).join("")}</div>
+      <div class="target-rows">${rows}</div>
+    </div>
+    <div class="panel"><h3>Objections</h3><p class="sub">Traitées cette semaine (règle : les 5 au moins une fois)</p>
+      <div class="obj-grid">${Object.keys(OBJ).map(o => `<div class="obj ${objs.has(o)?"on":""}" data-tip="${esc(OBJ[o])}"><b>${o}</b>${esc(OBJ[o].split(" (")[0])}</div>`).join("")}</div>
+    </div>
+    <div class="panel"><h3>Services</h3><p class="sub">Les trois restent d'importance égale</p><div class="hbars">${svcRows}</div></div>
+    <div class="panel"><h3>Production</h3><p class="sub">Statut des ${stTotal} créneaux</p><div class="thinbar">${thin}</div>
+      <div class="strows"><span><i style="background:#4b6580"></i>À produire<b>${st.todo}</b></span><span><i style="background:var(--yellow)"></i>Prêtes<b>${st.ready}</b></span><span><i style="background:var(--good)"></i>Publiées<b>${st.done}</b></span>${free?`<span><i style="background:#1a3a5c"></i>Créneaux libres<b>${free}</b></span>`:""}</div>
+    </div>${todos}`;
+}
+
+/* ═════════════════════════ TIROIR ═════════════════════════ */
+function secCopy(title, text, cls=""){
+  return `<div class="sec copyable"><h4>${title}<button class="btn sm" type="button" data-copy>Copier</button></h4><pre class="${cls}">${esc(text)}</pre></div>`;
+}
+function checksBlock(text, kind){
+  const res = checkCaption(text, kind); const sc = scoreOf(res);
+  return `<div class="sec"><h4>Contrôle · ${sc.ok}/${sc.total}</h4><div class="mini-checks" style="display:flex">${miniChecks(res)}</div></div>`;
+}
+function openDrawer(key){
+  const slot = SLOTS.find(s => s.key === key); if (!slot) return;
+  UI.drawerKey = key; renderDrawer();
+  $("#drawer").classList.add("open"); $("#scrim").classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
+  setTimeout(()=>$("#dr-close").focus(), 50);
+}
+function closeDrawer(){
+  const k = UI.drawerKey; UI.drawerKey = null;
+  $("#drawer").classList.remove("open"); $("#scrim").classList.remove("open"); $("#drawer").setAttribute("aria-hidden","true");
+  const back = k ? $(`.lbl-open[data-key="${CSS.escape(k)}"]`) : null; if (back) back.focus();
+}
+function renderDrawer(){
+  const key = UI.drawerKey; if (!key) return;
+  const slot = SLOTS.find(s => s.key === key); const v = view(slot); const I = INTENTS[v.intent] || INTENTS.ATT; const st = statusOf(key);
+  $("#dr-code").textContent = `${v.code} · ${dayLong(slot.date)} · ${MOMENTS[slot.moment].label} ${fmtTime(slot.time)}`;
+  const meta = `<div class="dr-meta"><span class="pill"><i style="background:${I.c}"></i>${I.label}</span><span class="pill">${slot.type}</span>${v.format?`<span class="pill">${esc(v.format)}</span>`:""}${v.service?`<span class="pill">${esc(v.service)}</span>`:""}${v.obj?`<span class="pill">Objection : ${esc(v.obj)}</span>`:""}</div>`;
+  const statusSw = v.src === "empty" ? "" : `<div class="status-switch" role="group" aria-label="Statut">${["todo","ready","done"].map(s => `<button type="button" data-set-st="${s}" data-v="${s}" aria-pressed="${st===s}">${ST_LABEL[s]}</button>`).join("")}</div>`;
+  let body = `<h3 class="dr-hook" id="dr-title">${esc(v.hook)}</h3>${meta}${statusSw}`;
+  if (v.src === "post"){
+    const p = slot.base;
+    if (p.warn) body += `<div class="note warn">${esc(p.warn)}</div>`;
+    if (p.img) body += `<div class="sec"><h4>${p.kind === "ia" ? "Image de référence (séquence illustrative)" : "Visuel"}</h4><img class="dr-img" src="${p.img}" alt="${esc(p.format)}" loading="lazy">${p.imgNote?`<p class="ws-cap" style="margin-top:6px">${esc(p.imgNote)}</p>`:""}</div>`;
+    body += secCopy("Légende à copier", p.caption);
+    body += checksBlock(p.caption, p.kind === "carrousel" || p.kind === "imageqr" ? "autre" : p.kind);
+    body += `<div class="sec"><h4>Appel à l'action</h4><p style="margin:0">${esc(p.cta)}</p></div>`;
+    if (p.design) body += `<div class="sec"><h4>Visuel à créer</h4><p style="margin:0;color:var(--ink-2)">${esc(p.design)}</p></div>`;
+    if (p.script) body += `<div class="sec"><h4>Script plan par plan</h4><div class="tbl-wrap"><table class="script"><thead><tr><th>Plan</th><th>Durée</th><th>Image</th><th>Texte à l'écran</th></tr></thead><tbody>${p.script.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+    if (p.slides) body += `<div class="sec"><h4>Diapos</h4><ol class="clean">${p.slides.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>`;
+    if (p.shots) body += `<div class="sec"><h4>Quoi filmer</h4><ol class="clean">${p.shots.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>`;
+    if (p.prompt && PROMPTS[p.prompt]){ body += secCopy(PROMPTS[p.prompt].title, PROMPTS[p.prompt].text, "code"); if (p.prompt !== "V4") body += secCopy("Prompt négatif", NEGATIVE, "code"); }
+  } else if (v.src === "idea"){
+    const idea = v.idea;
+    body += `<p class="ws-cap" style="margin:0">Idée ${idea.source === "claude" ? "rédigée par Claude" : "assemblée par la machine"} · ${esc(idea.segLabel || "")}</p>`;
+    body += secCopy("Légende à copier", idea.caption);
+    body += checksBlock(idea.caption, idea.kind === "carrousel" || idea.kind === "imageqr" || idea.kind === "question" ? "autre" : idea.kind);
+    if (idea.production) body += secCopy("Production", idea.production);
+    if (idea.prompt) body += secCopy("Prompt vidéo", idea.prompt, "code");
+    if (idea.vis) body += `<div class="sec"><h4>Visuel existant suggéré</h4><img class="dr-img" src="assets/visuels/${String(idea.vis).padStart(2,"0")}.jpg" alt="Visuel ${idea.vis}" loading="lazy"></div>`;
+    body += `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-unslot="${idea.id}">Retirer du créneau (garder en banque)</button><button class="btn ghost" type="button" data-del="${idea.id}">Supprimer l'idée</button></div>`;
+  } else if (v.src === "concept"){
+    const c = slot.base;
+    body += `<div class="note">Concept de la semaine 3 : ${esc(c.note)}</div>`;
+    body += `<div class="sec"><h4>Développer ce concept</h4><p style="margin:0 0 10px;color:var(--ink-2)">La machine assemble une légende complète à partir de ce concept. Claude peut aussi la rédiger.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-develop="${key}">Développer avec la machine</button><button class="btn claude claude-only" type="button" data-claude-slot="${key}" ${Claude.ok?"":"hidden"}>Rédiger avec Claude</button></div><div id="slot-claude" style="margin-top:12px"></div></div>`;
+    if (c.kind === "ia" && /V7/.test(c.note)) body += secCopy(PROMPTS.V7.title, PROMPTS.V7.text, "code");
+  } else {
+    body += `<div class="note">Créneau libre. Intention suggérée par la règle de rotation : <b>${I.label}</b> (${slot.type === "FORTE" ? "publication forte" : "publication légère"}).</div>`;
+    body += `<div class="sec"><h4>Remplir ce créneau</h4><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-develop="${key}">Générer avec la machine</button><button class="btn" type="button" data-to-machine="${key}">Choisir dans la machine</button><button class="btn claude claude-only" type="button" data-claude-slot="${key}" ${Claude.ok?"":"hidden"}>Rédiger avec Claude</button></div><div id="slot-claude" style="margin-top:12px"></div></div>`;
+    const bankIdeas = Array.from(Store.ideas.values()).filter(i => !i.slot);
+    if (bankIdeas.length) body += `<div class="sec"><h4>Ou prendre une idée de la banque</h4><div style="display:grid;gap:6px">${bankIdeas.slice(0,6).map(i => `<button class="btn" style="justify-content:flex-start;text-align:left" type="button" data-place="${i.id}" data-slot="${key}"><i style="width:8px;height:8px;border-radius:50%;background:${(INTENTS[i.intent]||INTENTS.ATT).c};flex:none"></i>${esc(i.hook)}</button>`).join("")}</div></div>`;
+  }
+  $("#dr-body").innerHTML = body;
+}
+
+/* ═════════════════════════ MACHINE ═════════════════════════ */
+const M = {seg:"any", intent:"any", kind:"any", obj:"any", slot:""};
+const REEL_DEFS = [
+  {key:"seg", cap:"Segment", opts:() => Object.entries(SEGMENTS).map(([k,s]) => [k, s.short])},
+  {key:"intent", cap:"Intention", opts:() => INTENT_ORDER.map(k => [k, INTENTS[k].label.replace("Lever une objection","Objection")])},
+  {key:"obj", cap:"Objection", opts:() => Object.keys(OBJ).map(k => [k, `${k} · ${OBJ_SHORT[k]}`])},
+  {key:"kind", cap:"Format", opts:() => Object.entries(FORMATS).map(([k,f]) => [k, f.label])}
+];
+function freeSlots(){ return SLOTS.filter(s => s.week >= 2 && !Store.ideaAt(s.key)); }
+function slotOptions(selected){
+  const list = freeSlots();
+  if (selected && !list.some(s => s.key === selected)){ const cur = SLOTS.find(x => x.key === selected); if (cur) list.unshift(cur); }
+  return `<option value="">Banque seulement (sans créneau)</option>` + list.map(s => { const v = view(s); return `<option value="${s.key}" ${s.key===selected?"selected":""}>S${s.week} · ${dayLong(s.date)} · ${MOMENTS[s.moment].label} · ${(INTENTS[v.intent]||{}).label||""}</option>`; }).join("");
+}
+function renderCtrl(){
+  const group = (key, title, list) => `<fieldset><legend>${title}</legend><div class="opts">
+    <button class="opt any" type="button" data-m="${key}" data-val="any" aria-pressed="${M[key]==="any"}">Au hasard</button>
+    ${list.map(([k,l,c]) => `<button class="opt" type="button" data-m="${key}" data-val="${k}" aria-pressed="${M[key]===k}">${c?`<i style="background:${c}"></i>`:""}${esc(l)}</button>`).join("")}</div></fieldset>`;
+  $("#ctrl").innerHTML =
+    group("seg","Segment", Object.entries(SEGMENTS).map(([k,s]) => [k, s.label])) +
+    group("intent","Intention", INTENT_ORDER.map(k => [k, INTENTS[k].label, INTENTS[k].c])) +
+    group("kind","Format", Object.entries(FORMATS).map(([k,f]) => [k, `${f.label} · ${f.type === "FORTE" ? "forte" : "légère"}`])) +
+    group("obj","Objection visée", Object.entries(OBJ).map(([k,o]) => [k, `${k} ${o.split(" (")[0]}`])) +
+    `<fieldset><legend>Créneau cible</legend><select id="m-slot">${slotOptions(M.slot)}</select></fieldset>`;
+}
+function buildReels(){
+  $("#reels").innerHTML = REEL_DEFS.map(r => `<div class="reel"><div class="strip" id="strip-${r.key}"></div></div>`).join("");
+  $("#reel-caps").innerHTML = REEL_DEFS.map(r => `<div class="reel-cap">${r.cap}</div>`).join("");
+  REEL_DEFS.forEach(r => { const o = r.opts(); const reps = 8; $(`#strip-${r.key}`).innerHTML = Array.from({length:reps}, () => o.map(([k,l]) => `<div>${esc(l)}</div>`).join("")).join(""); });
+}
+function spinTo(choice){
+  const H = 64; let maxDur = 0;
+  REEL_DEFS.forEach((r, i) => {
+    const o = r.opts(); const idx = Math.max(0, o.findIndex(([k]) => k === choice[r.key]));
+    const strip = $(`#strip-${r.key}`); const reps = 8;
+    const target = (reps-1)*o.length + idx;
+    strip.style.transition = "none"; strip.style.transform = `translateY(${-(idx)*H}px)`;
+    void strip.offsetHeight;
+    const dur = reduceMotion ? 0 : 1100 + i*320; maxDur = Math.max(maxDur, dur);
+    strip.style.transition = reduceMotion ? "none" : `transform ${dur}ms cubic-bezier(.12,.75,.18,1)`;
+    strip.style.transform = `translateY(${-target*H}px)`;
+  });
+  return new Promise(res => setTimeout(res, maxDur + 80));
+}
+function resolveChoice(target){
+  const slot = target ? SLOTS.find(s => s.key === target) : null;
+  const sv = slot ? view(slot) : null;
+  const c = {};
+  c.seg = M.seg !== "any" ? M.seg : (sv && sv.service && /A4|Commerce/.test(sv.service) ? "A4" : sv && /A2/.test(sv.service||"") ? "A2" : pick(Object.keys(SEGMENTS)));
+  c.intent = M.intent !== "any" ? M.intent : (sv ? sv.intent : pick(INTENT_ORDER));
+  const type = slot ? slot.type : null;
+  const kinds = Object.keys(FORMATS).filter(k => !type || FORMATS[k].type === type);
+  let kind = M.kind !== "any" ? M.kind : (sv && sv.src === "concept" ? sv.kind : null);
+  if (!kind){ const pref = c.intent === "RAS" ? ["reel","photo"] : c.intent === "EDU" ? ["carrousel","imageqr","photo"] : c.intent === "LEV" ? ["imageqr","carrousel","ia"] : c.intent === "CON" ? ["ia","carrousel","visuel"] : ["ia","visuel","question"]; const ok = pref.filter(k => kinds.includes(k)); kind = pick(ok.length ? ok : kinds); }
+  c.kind = kind;
+  const fromConcept = sv && (String(sv.obj).match(/O[1-6]/) || [])[0];
+  c.obj = M.obj !== "any" ? M.obj : (fromConcept || pick(Object.keys(OBJ)));
+  return c;
+}
+function composeIdea(c, opts={}){
+  const S = SEGMENTS[c.seg]; const it = pick(S.items); const item = it[0], en = it[1];
+  const fill = s => s.replace("{Item}", cap(item)).replace("{item}", item);
+  let hook, middle = "", tipsList = null;
+  if (opts.hook) hook = opts.hook;
+  else if (c.intent === "ATT") hook = fill(pick(S.hooks));
+  else if (c.intent === "EDU"){ const tk = c.obj === "O2" ? "prix" : c.obj === "O6" ? "vendeur" : c.obj === "O4" ? "acces" : pick(S.tips); tipsList = TIPS[tk]; hook = TIPS[tk].hook; }
+  else if (c.intent === "RAS") hook = pick(c.kind === "ia" || c.kind === "visuel" ? HOOKS_RAS_IA : HOOKS_RAS);
+  else if (c.intent === "LEV") hook = HOOKS_LEV[c.obj] || HOOKS_LEV.O3;
+  else hook = fill(pick(HOOKS_CON));
+  if (c.intent === "EDU" && !tipsList){ const tk = pick(S.tips); tipsList = TIPS[tk]; }
+  const L = [];
+  L.push(hook + (c.intent === "ATT" ? " 🤔" : c.intent === "CON" ? " ✉️" : ""));
+  L.push("");
+  if (c.intent === "EDU"){ L.push("Avant de nous écrire, gardez ces réflexes en tête :"); tipsList.list.forEach((t,i) => L.push(`${i+1}. ${t}`)); }
+  else if (c.intent === "LEV"){ L.push(LEV_BODY[c.obj] || LEV_BODY.O3); }
+  else if (c.intent === "RAS"){ L.push(c.kind === "ia" || c.kind === "visuel" ? RAS_IA_BODY : "Pas de mise en scène : une vraie Kia Sedona blanche, sièges arrière retirés, et deux personnes pour la manutention de vos articles acceptés."); }
+  else L.push(S.ctx);
+  L.push("");
+  L.push("→ deux personnes pour la manutention : vous n'avez pas besoin de porter");
+  L.push(S.plus);
+  L.push("→ Montréal, Laval, Longueuil et environs");
+  L.push("");
+  L.push("Envoyez-nous sur Messenger : des photos, les dimensions et le poids approximatif de chaque morceau, les deux adresses, la date souhaitée et les accès (étages, ascenseur).");
+  L.push("💬 " + MSG);
+  L.push("");
+  L.push("Environ 25 kg max par morceau · pas de déménagement complet · pas d'objets très fragiles.");
+  if (c.intent === "CON") L.push("Une demande de devis n'est pas une réservation : on confirme ensemble.");
+  const labelLine = {ia:"(Séquence illustrative créée par IA, pas une livraison réelle.)", visuel:"(Visuel illustratif.)", photo:"(Photo réelle de notre Kia.)", reel:"(Vidéo réelle.)"}[c.kind];
+  if (labelLine) L.push(labelLine);
+  L.push(S.tags);
+  const caption = L.join("\n");
+  let production = "", prompt = "", vis = null;
+  if (c.kind === "ia"){
+    const shot1 = S.shot1.replace("{en}", en);
+    production = `Plan 1 (0–3 s) : situation de départ (${S.short.toLowerCase()}) · texte : « ${hook} »\nPlan 2 (3–9 s) : la Kia blanche arrive ou est stationnée, porte coulissante ou hayon ouvert ; deux personnes portent ${item} et le déposent sur le plancher beige · texte : « Nous sommes deux. Vous ne portez pas. »\nPlan 3 (9–12 s) : la Kia repart dans une rue de triplex en brique · texte : « ~25 kg max par morceau »\nPlan 4 (12–14 s) : carton final #072541 · « Écrivez-nous sur Messenger » + « Séquence illustrative » en permanence`;
+    prompt = `Vertical 9:16 realistic cinematic short video, 14 seconds, late autumn in Montreal, overcast soft light. Shot 1: ${shot1}. Shot 2: a ${VEHICLE}, is parked at the curb with its rear tailgate open; two movers in plain navy t-shirts and work gloves carry ${en} together and place it on the empty beige cargo floor. Shot 3: the white Kia Sedona minivan drives away down the residential street, smooth tracking shot from behind. Photorealistic, calm careful movements, no other vehicles, no text on screen.\n\nNegative prompt: ${NEGATIVE}`;
+  } else if (c.kind === "reel"){
+    production = `Vidéo réelle, téléphone vertical, 20–30 s :\n1. (3 s) La vraie Kia, plaque cachée ou floutée\n2. (3 s) La porte latérale coulissante s'ouvre\n3. (4 s) Le hayon se lève ; l'espace de chargement (seulement s'il est vraiment vide)\n4. (5 s) Vous deux, avec l'accord des deux pour les visages\n5. (6 s) Démonstration : vous portez à deux ${item} (un objet à vous, pas un client)\n6. (3 s) Carton final : « Vidéo réelle » + « Devis sur Messenger »`;
+  } else if (c.kind === "carrousel"){
+    const list = tipsList ? tipsList.list : ["Des photos de chaque article","Dimensions et poids de chaque morceau (~25 kg max)","Les deux adresses","La date souhaitée","Les étages et accès aux deux adresses"];
+    production = `Carrousel 1080 × 1350, couleurs #072541 / #FFD521 / blanc :\nDiapo 1 : « ${hook.toUpperCase()} »\n` + list.map((t,i) => `Diapo ${i+2} : « ${i+1}. ${t} »`).join("\n") + `\nDiapo ${list.length+2} : fond jaune · « Deux personnes pour porter · pas de déménagement complet » · « m.me/1481197351735657 »`;
+  } else if (c.kind === "photo"){
+    production = "Vraie photo : Desktop\\kia\\WhatsApp Image 2026-05-01 at 00.15.2144.jpeg (profil) ou WhatsApp1.jpeg (porte ouverte). Flouter la plaque si elle est visible. Recadrer en 4:5. Ne jamais utiliser la photo d'intérieur avec sièges pour illustrer l'espace vide.";
+  } else if (c.kind === "visuel"){
+    vis = S.vis.length ? pick(S.vis) : pick([10,12,13,15,16,18]);
+    production = `Visuel existant n° ${String(vis).padStart(2,"0")} (campagne-livraison\\images\\${String(vis).padStart(2,"0")}.png), utilisable tel quel. Garder « (Visuel illustratif.) » dans la légende.`;
+  } else if (c.kind === "imageqr"){
+    production = `Image 1080 × 1350 : fond #072541 · question en blanc : « ${hook.toUpperCase()} » · réponse courte en jaune #FFD521 · bandeau du bas : « Environ 25 kg max par morceau · deux personnes pour porter ». Aucune photo IA.`;
+  } else {
+    const q = pick(QUESTIONS);
+    production = `Publication texte seule. Question d'engagement à ajouter en tête : « ${q} »\nRépondre aux commentaires en invitant à écrire sur Messenger avec les 5 informations. Jamais de prix en commentaire.`;
+  }
+  return {id:uid(), temp:true, source:"machine", seg:c.seg, segLabel:S.label, service:S.service, intent:c.intent, kind:c.kind, obj:c.obj, hook, caption, production, prompt, vis, slot:null, createdAt:Date.now()};
+}
+function ideaCard(idea){
+  const I = INTENTS[idea.intent] || INTENTS.ATT; const F = FORMATS[idea.kind] || {label:idea.kind, type:""};
+  const res = checkCaption(idea.caption, ["carrousel","imageqr","question"].includes(idea.kind) ? "autre" : idea.kind);
+  const saved = Store.ideas.has(idea.id);
+  return `<article class="idea ${idea._fresh ? "fresh" : ""}" style="--stripe:${I.l}" data-idea="${idea.id}">
+    <div class="src"><span>${idea.source === "claude" ? "✦ Rédigée par Claude" : "⚙ Machine"}</span><span>${esc(idea.segLabel || "")}</span><span>${I.label}</span><span>${esc(F.label)} · ${F.type}</span><span>${idea.obj ? esc(idea.obj) : ""}</span></div>
+    <h3>${esc(idea.hook)}</h3>
+    <div class="mini-checks">${miniChecks(res)}</div>
+    <details class="copyable"><summary>Légende complète</summary><pre>${esc(idea.caption)}</pre></details>
+    ${idea.production ? `<details><summary>Production</summary><pre>${esc(idea.production)}</pre></details>` : ""}
+    ${idea.prompt ? `<details class="copyable"><summary>Prompt vidéo (Kling, Veo, Higgsfield)</summary><pre class="code">${esc(idea.prompt)}</pre></details>` : ""}
+    <div class="idea-actions">
+      <button class="btn sm" type="button" data-copy-caption="${idea.id}">Copier la légende</button>
+      ${idea.prompt ? `<button class="btn sm ghost" type="button" data-copy-prompt="${idea.id}">Copier le prompt</button>` : ""}
+      <select aria-label="Créneau" data-slot-for="${idea.id}">${slotOptions(idea.slot || M.slot)}</select>
+      <button class="btn sm" type="button" data-save="${idea.id}">${saved ? "Mettre à jour" : "Planifier / garder"}</button>
+      <button class="btn sm ghost" type="button" data-drop="${idea.id}">Retirer</button>
+    </div>
+  </article>`;
+}
+function renderResults(){
+  const box = $("#results");
+  if (!UI.results.length){ box.innerHTML = `<div class="empty"><b>La machine attend son premier tour.</b><span>Choisis quelques réglages (ou aucun) et clique sur « Lancer la machine ». Chaque idée arrive avec sa légende complète, sa production et son contrôle de conformité. Tu peux ensuite la planifier dans un créneau libre de S2 ou S3, ou la garder en banque.</span></div>`; return; }
+  box.innerHTML = UI.results.map(ideaCard).join("");
+  UI.results.forEach(r => { delete r._fresh; });
+}
+function renderBank(){
+  const list = Array.from(Store.ideas.values()).sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+  if (!list.length){ $("#bank").innerHTML = `<div class="empty" style="grid-column:1/-1"><b>Banque vide pour l'instant.</b><span>Les idées que tu gardes ou planifies apparaissent ici, ${Store.mode === "db" ? "synchronisées pour tes prochaines visites" : "enregistrées sur cet appareil"}.</span></div>`; return; }
+  $("#bank").innerHTML = list.map(i => { const I = INTENTS[i.intent] || INTENTS.ATT; const s = i.slot ? SLOTS.find(x => x.key === i.slot) : null;
+    return `<div class="bank-item" style="--stripe:${I.c}"><div class="meta">${i.source === "claude" ? "✦ Claude" : "⚙ Machine"} · ${I.label} · ${esc((FORMATS[i.kind]||{}).label || i.kind)}</div><h4>${esc(i.hook)}</h4><div class="meta">${s ? `Planifiée : S${s.week} · ${dayLong(s.date)} · ${MOMENTS[s.moment].label}` : "En banque, sans créneau"}</div>
+    <div class="idea-actions"><button class="btn sm" type="button" data-copy-caption="${i.id}">Copier</button>${s ? `<button class="btn sm ghost" type="button" data-open="${i.slot}">Voir l'étiquette</button>` : `<button class="btn sm ghost" type="button" data-plan-bank="${i.id}">Planifier</button>`}<button class="btn sm ghost" type="button" data-del="${i.id}">Supprimer</button></div></div>`; }).join("");
+}
+async function runMachine(target){
+  const c = resolveChoice(target ?? M.slot);
+  const btn = $("#spin"); btn.disabled = true;
+  await spinTo(c);
+  const idea = composeIdea(c); idea._fresh = true;
+  if (target ?? M.slot) idea.slot = target ?? M.slot;
+  UI.results.unshift(idea); UI.results = UI.results.slice(0, 8);
+  renderResults(); btn.disabled = false;
+  return idea;
+}
+
+/* ═════════════════════════ CLAUDE (sample) ═════════════════════════ */
+const Claude = {fn:null, ok:false, ctl:null,
+  async init(){
+    try { this.fn = (window.claude && claude.use) ? await claude.use("sample") : null; } catch(e){ this.fn = null; }
+    this.ok = !!this.fn; this.paint();
+  },
+  paint(){
+    const chip = $("#claude-chip");
+    chip.dataset.s = this.ok ? "ok" : "ro"; chip.querySelector("span").textContent = this.ok ? "Claude prêt" : (window.claude ? "Claude indisponible" : "Claude : sur claude.ai");
+    $("#ask-claude").hidden = !this.ok; $("#fix-claude").hidden = !this.ok;
+    $$(".claude-only").forEach(b => b.hidden = !this.ok);
+  },
+  disable(){ this.ok = false; this.paint(); },
+  errText(e){
+    const c = e && e.code;
+    if (c === "not_granted" || c === "sampling_disabled" || c === "not_declared" || c === "capability_disabled" || c === "capability_removed"){ this.disable(); return "Claude n'est pas autorisé pour cette page. La machine locale reste disponible."; }
+    if (c === "rate_limited") return "Trop de demandes pour l'instant. Réessaie dans un moment.";
+    if (c === "invalid_json") return "La réponse de Claude n'était pas dans le bon format. Clique à nouveau pour réessayer.";
+    if (c === "refused") return "Claude a refusé cette demande. Change les réglages et réessaie.";
+    if (c === "session_expired") return "Ta session a expiré : reconnecte-toi à Claude.";
+    if (c === "cancelled") return "Rédaction arrêtée.";
+    return "Claude ne répond pas pour l'instant. Réessaie plus tard.";
+  }
+};
+function brief(c, n, slot, hookHint){
+  const S = SEGMENTS[c.seg]; const I = INTENTS[c.intent]; const F = FORMATS[c.kind];
+  const label = {ia:"(Séquence illustrative créée par IA, pas une livraison réelle.)", visuel:"(Visuel illustratif.)", photo:"(Photo réelle de notre Kia.)", reel:"(Vidéo réelle.)"}[c.kind] || "";
+  return `Tu es le stratège de contenu Facebook de « Livraison Montréal Petit Transport ». Rédige ${n} idée${n>1?"s":""} de publication pour la Page Facebook (organique, pas de publicité).
+
+FAITS DU SERVICE (ne jamais les contredire) :
+- Vraie Kia Sedona blanche (minifourgonnette) : sièges arrière retirés, deux sièges avant beige, porte latérale coulissante, hayon arrière.
+- Deux personnes font la manutention : le client n'a pas besoin de porter.
+- Environ 25 kg maximum PAR MORCEAU. Pas de déménagement complet. Pas d'objets très fragiles.
+- Trois services d'importance égale : livraison d'achats (Marketplace, seconde main), petits déménagements partiels, livraisons pour commerces et artisans.
+- Zone : Montréal, Laval, Longueuil et environs, jusqu'à environ 1 h 30 de route au départ de Montréal. Basés à Anjou.
+- Prix sur devis seulement, via Messenger. Une demande de devis n'est pas une réservation.
+- Pour un devis, le client envoie : photos des articles, dimensions et poids approximatif, les deux adresses, la date souhaitée, les étages et l'accès aux deux adresses.
+
+INTERDITS : aucun prix ni montant, aucun « gratuit », aucune garantie de délai, de disponibilité ou d'assurance, aucun faux avis ni fausse mission, aucun lien sauf Messenger, aucun autre véhicule que la Kia, aucune formulation au « je » (ils sont deux : « nous » ou « on »). Ne jamais présenter un contenu IA comme une vraie livraison.
+
+STYLE : français québécois naturel, vouvoiement du client, phrases courtes, 3 émojis au maximum, 2 ou 3 mots-clics au maximum. Légende de 450 à 900 caractères.
+
+CHAQUE LÉGENDE DOIT CONTENIR : le lien exact ${MSG} ; la mention « deux personnes » pour la manutention ; « environ 25 kg max par morceau » ; le rappel « pas de déménagement complet ni d'objets très fragiles »${label ? ` ; et à la fin la mention ${label}` : ""}.
+
+PARAMÈTRES :
+- Segment : ${S.label} (service : ${S.service}).
+- Intention : ${I.label}, c'est-à-dire ${I.def}.
+- Format : ${F.label} (publication ${F.type === "FORTE" ? "forte" : "légère"}).
+- Objection visée : ${c.obj} — ${OBJ[c.obj] || ""}.${slot ? `\n- Créneau : ${dayLong(slot.date)}, ${MOMENTS[slot.moment].label.toLowerCase()} (${fmtTime(slot.time)}).` : ""}${hookHint ? `\n- Point de départ (concept validé, à garder ou améliorer) : « ${hookHint} »` : ""}
+
+Réponds avec uniquement un objet JSON de cette forme, sans texte autour :
+{"idees":[{"accroche":"...","legende":"...","production":"...","prompt_video":"..."}]}
+- « production » : pour une vidéo, un script plan par plan avec durées (3 ou 4 plans, 7 à 20 s au total) et les textes à l'écran ; pour un carrousel, le texte de chaque diapo ; pour une image, la description du visuel (couleurs #072541, #FFD521, blanc) ; pour une vidéo réelle, quoi filmer plan par plan ; pour une question, la question d'engagement.
+- « prompt_video » : seulement si le format est une vidéo IA, un prompt en anglais pour Kling, Veo ou Higgsfield, vertical 9:16, contenant mot pour mot : "${VEHICLE}". Sinon une chaîne vide.
+${n > 1 ? `Les ${n} idées doivent avoir des accroches et des angles différents.` : ""}`;
+}
+function claudePanel(zone, title){
+  zone.hidden = false;
+  zone.innerHTML = `<div class="panel"><div class="thinking"><span class="dots"><i></i><i></i><i></i></span><span id="${zone.id}-state">${title}</span></div><div class="stream" id="${zone.id}-stream" hidden></div></div>`;
+}
+async function askClaude({c, n, slot, hookHint, zone, onIdeas}){
+  if (!Claude.ok) return;
+  if (Claude.ctl) Claude.ctl.abort();
+  const ctl = new AbortController(); Claude.ctl = ctl;
+  claudePanel(zone, "Claude réfléchit… (la première réponse peut prendre jusqu'à une minute)");
+  $("#stop-claude").hidden = zone.id !== "claude-zone";
+  const stream = $(`#${zone.id}-stream`), state = $(`#${zone.id}-state`);
+  try {
+    const data = await Claude.fn.json(brief(c, n, slot, hookHint), {
+      signal: ctl.signal, cache:false, modelTier:"default",
+      onText: ({text}) => { stream.hidden = false; stream.textContent = text; stream.scrollTop = stream.scrollHeight; state.textContent = `Claude rédige… ${text.length} caractères`; }
+    });
+    const arr = data && Array.isArray(data.idees) ? data.idees : (Array.isArray(data) ? data : []);
+    const ideas = arr.filter(x => x && x.accroche && x.legende).slice(0, n).map(x => ({id:uid(), temp:true, source:"claude", seg:c.seg, segLabel:SEGMENTS[c.seg].label, service:SEGMENTS[c.seg].service, intent:c.intent, kind:c.kind, obj:c.obj, hook:String(x.accroche).trim(), caption:String(x.legende).trim(), production:String(x.production||"").trim(), prompt:c.kind === "ia" ? String(x.prompt_video||"").trim() : "", vis:null, slot:slot ? slot.key : null, createdAt:Date.now(), _fresh:true}));
+    if (!ideas.length){ zone.innerHTML = `<div class="note warn">Claude n'a renvoyé aucune idée exploitable. Réessaie.</div>`; return; }
+    zone.hidden = true; zone.innerHTML = "";
+    onIdeas(ideas);
+    toast(`${ideas.length} idée${ideas.length>1?"s":""} rédigée${ideas.length>1?"s":""} par Claude`);
+  } catch(e){
+    zone.innerHTML = `<div class="note ${e && e.code === "cancelled" ? "" : "warn"}">${esc(Claude.errText(e))}</div>`;
+  } finally {
+    if (Claude.ctl === ctl) Claude.ctl = null;
+    $("#stop-claude").hidden = true;
+  }
+}
+
+/* ═════════════════════════ CONTRÔLE ═════════════════════════ */
+const SAMPLE_BAD = `[Exemple avec erreurs volontaires]
+Je livre vos meubles partout à Montréal à partir de 40 $ ! Livraison gratuite aujourd'hui, et vos biens sont assurés.
+
+Écrivez-moi vite, je réponds en 24 h. Plus d'infos : https://livrego.ca
+
+#Montréal #Livraison`;
+function renderCheck(){
+  const t = $("#check-input").value; const kind = $("#check-kind").value;
+  const res = checkCaption(t, kind); const sc = scoreOf(res);
+  const pct = sc.total ? Math.round(sc.ok/sc.total*100) : 0;
+  const ring = $("#check-ring"); ring.style.setProperty("--p", pct); ring.style.setProperty("--ringc", sc.err ? "var(--critical)" : sc.warn ? "var(--warning)" : "var(--good)");
+  $("#check-score").textContent = `${sc.ok}/${sc.total}`;
+  $("#check-sum").textContent = !t.trim() ? "Colle une légende pour lancer le contrôle." : sc.err ? `${sc.err} problème${sc.err>1?"s":""} bloquant${sc.err>1?"s":""} avant publication.` : sc.warn ? "Publiable après relecture des points en orange." : "Conforme : prête à publier.";
+  $("#check-list").innerHTML = res.map(r => `<div class="chk" data-l="${r.level}"><span class="ic">${r.level==="ok"?"✓":r.level==="err"?"✗":r.level==="warn"?"!":"i"}</span><span><b>${esc(r.label)}</b><small>${esc(r.detail)}</small></span></div>`).join("");
+}
+async function fixWithClaude(){
+  if (!Claude.ok) return;
+  const zone = $("#fix-zone"); const text = $("#check-input").value.trim(); if (!text){ toast("Colle d'abord une légende"); return; }
+  const kind = $("#check-kind").value;
+  const label = {ia:"(Séquence illustrative créée par IA, pas une livraison réelle.)", visuel:"(Visuel illustratif.)", photo:"(Photo réelle de notre Kia.)", reel:"(Vidéo réelle.)"}[kind] || "";
+  const prompt = `Réécris cette légende Facebook pour « Livraison Montréal Petit Transport » afin qu'elle respecte toutes ces règles, en gardant son idée principale :
+- français québécois naturel, vouvoiement, ton au « nous » (ils sont deux, jamais « je ») ;
+- contenir le lien exact ${MSG} et aucun autre lien ;
+- mentionner « deux personnes » pour la manutention (le client n'a pas besoin de porter) ;
+- contenir « environ 25 kg max par morceau » et « pas de déménagement complet ni d'objets très fragiles » ;
+- aucun prix, aucun « gratuit », aucune assurance, aucun délai ni disponibilité garantis, aucun faux avis ;
+- zone : Montréal, Laval, Longueuil et environs ; prix sur devis via Messenger ; une demande de devis n'est pas une réservation ;
+- 3 émojis et 3 mots-clics au maximum${label ? ` ;\n- terminer par la mention ${label}` : ""}.
+Réponds uniquement avec la légende corrigée, sans commentaire.
+
+LÉGENDE À CORRIGER :
+${text.replace(/^\[Exemple avec erreurs volontaires\]\s*/,"")}`;
+  if (Claude.ctl) Claude.ctl.abort();
+  const ctl = new AbortController(); Claude.ctl = ctl;
+  zone.hidden = false;
+  zone.innerHTML = `<div class="thinking"><span class="dots"><i></i><i></i><i></i></span><span id="fix-state">Claude corrige la légende…</span></div><div class="copyable" style="margin-top:10px"><pre id="fix-out" style="white-space:pre-wrap;background:var(--paper);color:var(--paper-ink);padding:14px;border-radius:10px;min-height:60px;font-family:var(--body)"></pre></div>`;
+  try {
+    const {text: out} = await Claude.fn(prompt, {signal:ctl.signal, cache:false, modelTier:"default", onText:({text}) => { $("#fix-out").textContent = text; $("#fix-state").textContent = "Claude corrige la légende…"; }});
+    $("#fix-out").textContent = out.trim();
+    const res = scoreOf(checkCaption(out, kind));
+    $("#fix-state").outerHTML = `<span>Correction terminée · contrôle ${res.ok}/${res.total}</span>`;
+    zone.insertAdjacentHTML("beforeend", `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn sm primary" type="button" id="fix-use">Remplacer le texte à vérifier</button><button class="btn sm" type="button" data-copy-el="fix-out">Copier</button></div>`);
+  } catch(e){
+    zone.innerHTML = `<div class="note ${e && e.code === "cancelled" ? "" : "warn"}">${esc(Claude.errText(e))}</div>`;
+  } finally { if (Claude.ctl === ctl) Claude.ctl = null; }
+}
+
+/* ═════════════════════════ VISUELS + GARDE-FOUS ═════════════════════════ */
+function renderVisuals(){
+  const f = UI.visFilter;
+  $$("#vis-filter button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.f === f)));
+  const badge = {ok:"Utilisable", fix:"À corriger", care:"Prudence"};
+  const cards = (f === "all" || f !== "real") ? VISUALS.filter(v => f === "all" || v[2] === f).map(([n,t,s,note,fix]) => `<div class="vis"><img src="assets/visuels/${String(n).padStart(2,"0")}.jpg" alt="Visuel ${n} : ${esc(t)}" loading="lazy"><span class="vb"><span class="vn">N° ${String(n).padStart(2,"0")}<span class="vbadge ${s}">${badge[s]}</span></span><span class="vt">${esc(t)}</span><span class="ws-cap" style="margin:0">${esc(note)}${fix?` <b style="color:var(--ink)">→ ${esc(fix)}</b>`:""}</span></span></div>`).join("") : "";
+  const reals = (f === "all" || f === "real") ? REAL_PHOTOS.map(([src,t,note]) => `<div class="vis"><img src="${src}" alt="${esc(t)}" loading="lazy"><span class="vb"><span class="vn">Vraie photo<span class="vbadge real">Réelle</span></span><span class="vt">${esc(t)}</span><span class="ws-cap" style="margin:0">${esc(note)}</span></span></div>`).join("") : "";
+  $("#vis-grid").innerHTML = cards + reals;
+}
+function renderRules(){
+  $("#rules").innerHTML = `
+  <div class="panel"><h3>Faits du service</h3><p class="sub">Ne jamais les contredire</p><ul>
+    <li><b>Véhicule :</b> vraie Kia Sedona blanche, sièges arrière retirés, deux sièges avant beige, porte latérale coulissante, hayon.</li>
+    <li><b>Duo :</b> deux personnes font la manutention, le client n'a pas besoin de porter.</li>
+    <li><b>Limites :</b> environ 25 kg max par morceau, pas de déménagement complet, pas d'objets très fragiles.</li>
+    <li><b>Services égaux :</b> achats (Marketplace, seconde main), petits déménagements partiels, commerces et artisans.</li>
+    <li><b>Zone :</b> Montréal, Laval, Longueuil et environs, jusqu'à environ 1 h 30 de route. Basés à Anjou.</li>
+    <li><b>Prix :</b> sur devis via Messenger. Une demande de devis n'est pas une réservation.</li></ul></div>
+  <div class="panel"><h3>Interdits</h3><p class="sub">Le contrôle les détecte</p><ul>
+    <li>Aucun prix, aucun « devis gratuit ».</li><li>Aucune garantie de délai, de disponibilité ou d'assurance.</li><li>Aucun faux avis, faux témoignage ou fausse mission.</li><li>Jamais une image ou vidéo IA présentée comme une vraie livraison.</li><li>Jamais un autre véhicule que la Kia Sedona blanche.</li><li>Aucun lien vers un site : le seul appel à l'action est Messenger.</li></ul></div>
+  <div class="panel"><h3>Les 5 intentions</h3><p class="sub">Cible : 40 % attirer + éduquer · 30 % rassurer + lever · 30 % convertir</p><div class="intent-def">${INTENT_ORDER.map(k => `<div><i style="background:${INTENTS[k].c}"></i><span><b>${INTENTS[k].label}</b> : ${esc(INTENTS[k].def)}</span></div>`).join("")}</div></div>
+  <div class="panel"><h3>Rotation (3 par jour)</h3><p class="sub">À partir de la semaine 3</p><ol>
+    <li>Jamais deux fois la même intention le même jour.</li><li>Jamais deux « Convertir » à la suite dans le fil.</li><li>Un jour par semaine sans « Convertir ».</li><li>Les objections O1 à O5 chaque semaine.</li><li>Les trois services chaque semaine, au moins 3 fois chacun.</li><li>Un visuel au plus toutes les 3 semaines ; une vidéo IA au plus tôt après 14 jours.</li><li>Aucune exception aux faits ni aux étiquettes IA.</li><li>Jamais de prix en commentaire : inviter sur Messenger.</li></ol></div>
+  <div class="panel copyable"><h3>Description obligatoire</h3><p class="sub">Dans chaque prompt vidéo qui montre la Kia</p><pre class="code" style="white-space:pre-wrap;font-family:var(--mono);font-size:12.5px;background:#03101c;color:#cfe0f0;padding:12px;border-radius:10px;border:1px solid var(--line);margin:0 0 10px">${esc(VEHICLE)}</pre><button class="btn sm" type="button" data-copy>Copier</button></div>
+  <div class="panel copyable"><h3>Prompt négatif commun</h3><p class="sub">Champ « negative prompt » des générateurs</p><pre class="code" style="white-space:pre-wrap;font-family:var(--mono);font-size:12.5px;background:#03101c;color:#cfe0f0;padding:12px;border-radius:10px;border:1px solid var(--line);margin:0 0 10px">${esc(NEGATIVE)}</pre><button class="btn sm" type="button" data-copy>Copier</button></div>
+  <div class="panel copyable"><h3>Modèle de demande</h3><p class="sub">À copier dans les légendes « Convertir »</p><pre style="white-space:pre-wrap;font-family:var(--body);font-size:14px;background:var(--paper);color:var(--paper-ink);padding:12px;border-radius:10px;margin:0 0 10px">Bonjour ! J'aimerais un devis.
+Articles : …
+Dimensions et poids de chaque morceau : …
+Adresse de départ : …
+Adresse d'arrivée : …
+Date et créneau souhaités : …
+Accès (étages, escaliers, ascenseur) : …</pre><button class="btn sm" type="button" data-copy>Copier</button></div>
+  <div class="panel"><h3>Heures de départ</h3><p class="sub">Hypothèses à ajuster après deux semaines (Statistiques de la Page)</p><ul><li><b>Matin 7 h 30</b> · publication légère</li><li><b>Midi 12 h 15</b> · légère (dès la semaine 3)</li><li><b>Soir 19 h 30</b> · publication forte</li></ul></div>`;
+}
+
+/* ═════════════════════════ NAVIGATION + ÉVÉNEMENTS ═════════════════════════ */
+const VIEWS = ["calendrier","idees","controle","visuels","garde-fous"];
+function show(viewName){
+  if (!VIEWS.includes(viewName)) viewName = "calendrier";
+  UI.view = viewName;
+  VIEWS.forEach(v => { $(`#view-${v}`).hidden = v !== viewName; const t = $(`#tab-${v}`); t.setAttribute("aria-selected", String(v === viewName)); });
+  if (viewName === "idees"){ renderCtrl(); renderResults(); renderBank(); }
+  if (viewName === "controle") renderCheck();
+}
+function renderAll(){
+  renderKpis(); renderRoute(); tick();
+  if (UI.view === "calendrier") renderBoard();
+  if (UI.view === "idees"){ const sel = $("#m-slot"); if (sel){ const v = sel.value; sel.innerHTML = slotOptions(v); } renderBank(); }
+  if (UI.drawerKey) renderDrawer();
+}
+function burst(){
+  if (reduceMotion) return;
+  const cv = $("#confetti"); cv.hidden = false; const ctx = cv.getContext("2d");
+  const W = cv.width = innerWidth, H = cv.height = innerHeight;
+  const cols = ["#ffd521","#f2f5f8","#3987e5","#199e70","#9085e9"];
+  const ps = Array.from({length:120}, () => ({x:W/2, y:H*0.35, vx:(Math.random()-.5)*14, vy:-Math.random()*12-4, s:4+Math.random()*6, c:pick(cols), r:Math.random()*6, vr:(Math.random()-.5)*.3}));
+  let f = 0;
+  (function loop(){ ctx.clearRect(0,0,W,H); ps.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += .35; p.r += p.vr; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*.7); ctx.restore(); }); if (++f < 110) requestAnimationFrame(loop); else { ctx.clearRect(0,0,W,H); cv.hidden = true; } })();
+}
+function advanceStatus(key, to){
+  const before = statusOf(key); const v = to || NEXT_ST[before];
+  Store.setStatus(key, v);
+  if (Store.mode === "ro") return;
+  renderAll();
+  if (v === "done"){
+    const stamp = $(`.lbl-open[data-key="${CSS.escape(key)}"]`)?.parentElement.querySelector(".stamp"); if (stamp) stamp.classList.add("thud");
+    const slot = SLOTS.find(s => s.key === key);
+    const wk = SLOTS.filter(s => s.week === slot.week && view(s).src !== "empty");
+    if (wk.length && wk.every(s => statusOf(s.key) === "done")){ burst(); toast(`Semaine ${slot.week} entièrement publiée !`); }
+    else toast("Publié · étiquette tamponnée");
+  } else toast(`Statut : ${ST_LABEL[v]}`);
+}
+async function placeIdea(idea, slotKey){
+  if (slotKey){ const other = Store.ideaAt(slotKey); if (other && other.id !== idea.id) await Store.patchIdea(other.id, {slot:null}); }
+  idea.slot = slotKey || null;
+  const ok = await Store.saveIdea(idea);
+  if (ok){ UI.results = UI.results.filter(r => r.id !== idea.id); renderResults(); renderAll(); toast(slotKey ? "Idée planifiée dans le calendrier" : "Idée gardée dans la banque"); }
+}
+async function fillWeek2(){
+  const empty = SLOTS.filter(s => s.week === 2 && !Store.ideaAt(s.key));
+  if (!empty.length){ toast("La semaine 2 est déjà remplie"); return; }
+  const segCycle = ["A1","A2","A4","A1","RET","A2","REV","A1","EVT","A4","A1","A2","RET","A4"];
+  const objNeed = ["O1","O2","O3","O4","O5","O6"];
+  const drafts = empty.map((s, i) => {
+    const kinds = s.type === "FORTE" ? ["ia","carrousel","reel","ia"] : ["visuel","photo","imageqr","question"];
+    const c = {seg:segCycle[i % segCycle.length], intent:s.suggest, kind:kinds[i % kinds.length], obj:objNeed[i % objNeed.length]};
+    if (c.intent === "RAS") c.kind = s.type === "FORTE" ? "reel" : "photo";
+    const idea = composeIdea(c); idea.slot = s.key; return idea;
+  });
+  UI.drawerKey = null;
+  $("#dr-code").textContent = "Remplissage automatique · semaine 2";
+  $("#dr-body").innerHTML = `<h3 class="dr-hook" id="dr-title">${drafts.length} brouillons prêts</h3><p style="margin:0;color:var(--ink-2)">Chaque créneau libre reçoit une publication qui suit l'intention suggérée et fait tourner segments, formats et objections. Rien n'est enregistré avant ta validation.</p>
+    <div style="display:grid;gap:8px">${drafts.map(d => { const s = SLOTS.find(x => x.key === d.slot); const I = INTENTS[d.intent]; return `<div class="bank-item" style="--stripe:${I.c}"><div class="meta">${dayLong(s.date)} · ${MOMENTS[s.moment].label} · ${I.label} · ${FORMATS[d.kind].label}</div><h4>${esc(d.hook)}</h4><div class="meta">${esc(d.segLabel)} · ${d.obj}</div></div>`; }).join("")}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="fill-confirm">Tout planifier</button><button class="btn ghost" type="button" id="fill-cancel">Annuler</button></div>`;
+  $("#drawer").classList.add("open"); $("#scrim").classList.add("open"); $("#drawer").setAttribute("aria-hidden","false");
+  fillWeek2.drafts = drafts;
+}
+
+document.addEventListener("click", async (e) => {
+  const t = e.target.closest("button, a, input"); if (!t) return;
+  if (t.matches(".tab")){ location.hash = t.dataset.view; return; }
+  if (t.dataset.week){ UI.week = Number(t.dataset.week); renderBoard(true); return; }
+  if (t.dataset.intent){ const k = t.dataset.intent; if (UI.filters.has(k) && UI.filters.size > 1) UI.filters.delete(k); else UI.filters.add(k); renderBoard(); return; }
+  if (t.dataset.st){ e.stopPropagation(); advanceStatus(t.dataset.st); return; }
+  if (t.dataset.setSt){ advanceStatus(UI.drawerKey, t.dataset.setSt); return; }
+  if (t.classList.contains("lbl-open")){ openDrawer(t.dataset.key); return; }
+  if (t.id === "dr-close"){ closeDrawer(); return; }
+  if (t.id === "next-open"){ if (nextSlot){ if (nextSlot.week !== UI.week){ UI.week = nextSlot.week; } location.hash = "calendrier"; show("calendrier"); renderBoard(); openDrawer(nextSlot.key); } return; }
+  if (t.hasAttribute("data-copy")){ const box = t.closest(".copyable").querySelector("pre"); copyText(box.textContent, t); return; }
+  if (t.dataset.copyEl){ copyText($("#" + t.dataset.copyEl).textContent, t); return; }
+  if (t.dataset.copyCaption){ const i = UI.results.find(r => r.id === t.dataset.copyCaption) || Store.ideas.get(t.dataset.copyCaption); if (i) copyText(i.caption, t); return; }
+  if (t.dataset.copyPrompt){ const i = UI.results.find(r => r.id === t.dataset.copyPrompt) || Store.ideas.get(t.dataset.copyPrompt); if (i) copyText(i.prompt, t); return; }
+  if (t.dataset.m){ M[t.dataset.m] = t.dataset.val; renderCtrl(); return; }
+  if (t.id === "spin"){ runMachine(); return; }
+  if (t.id === "surprise"){ M.seg = M.intent = M.kind = M.obj = "any"; renderCtrl(); runMachine(); return; }
+  if (t.id === "ask-claude"){
+    const c = resolveChoice(M.slot); await spinTo(c);
+    const slot = M.slot ? SLOTS.find(s => s.key === M.slot) : null;
+    askClaude({c, n:5, slot, zone:$("#claude-zone"), onIdeas: ideas => { UI.results = ideas.concat(UI.results).slice(0, 10); renderResults(); }});
+    return;
+  }
+  if (t.id === "stop-claude"){ if (Claude.ctl) Claude.ctl.abort(); return; }
+  if (t.dataset.save){ const idea = UI.results.find(r => r.id === t.dataset.save) || Store.ideas.get(t.dataset.save); const sel = $(`[data-slot-for="${CSS.escape(t.dataset.save)}"]`); if (idea) placeIdea(idea, sel ? sel.value : null); return; }
+  if (t.dataset.drop){ UI.results = UI.results.filter(r => r.id !== t.dataset.drop); renderResults(); return; }
+  if (t.dataset.del){ await Store.deleteIdea(t.dataset.del); renderAll(); if (UI.drawerKey) renderDrawer(); toast("Idée supprimée"); return; }
+  if (t.dataset.unslot){ await Store.patchIdea(t.dataset.unslot, {slot:null}); renderAll(); toast("Idée remise en banque"); return; }
+  if (t.dataset.place){ const idea = Store.ideas.get(t.dataset.place); if (idea) await placeIdea(idea, t.dataset.slot); return; }
+  if (t.dataset.planBank){ const idea = Store.ideas.get(t.dataset.planBank); if (idea){ UI.results = [idea].concat(UI.results.filter(r => r.id !== idea.id)); renderResults(); window.scrollTo({top:$("#results").getBoundingClientRect().top + scrollY - 90, behavior: reduceMotion ? "auto" : "smooth"}); toast("Choisis un créneau puis « Mettre à jour »"); } return; }
+  if (t.dataset.open){ const s = SLOTS.find(x => x.key === t.dataset.open); if (s){ UI.week = s.week; location.hash = "calendrier"; show("calendrier"); renderBoard(); openDrawer(s.key); } return; }
+  if (t.dataset.develop){
+    const key = t.dataset.develop; const slot = SLOTS.find(s => s.key === key); const sv = view(slot);
+    const c = resolveChoice(key); if (sv.src === "concept"){ c.intent = sv.intent; c.kind = sv.kind; }
+    const idea = composeIdea(c, sv.src === "concept" ? {hook:sv.hook} : {}); idea.slot = key;
+    await placeIdea(idea, key); renderDrawer(); return;
+  }
+  if (t.dataset.toMachine){ M.slot = t.dataset.toMachine; closeDrawer(); location.hash = "idees"; return; }
+  if (t.dataset.claudeSlot){
+    const key = t.dataset.claudeSlot; const slot = SLOTS.find(s => s.key === key); const sv = view(slot);
+    const c = resolveChoice(key); if (sv.src === "concept"){ c.intent = sv.intent; c.kind = sv.kind; }
+    askClaude({c, n:1, slot, hookHint: sv.src === "concept" ? sv.hook : "", zone:$("#slot-claude"), onIdeas: async ideas => { await placeIdea(ideas[0], key); renderDrawer(); }});
+    return;
+  }
+  if (t.id === "fill-w2"){ fillWeek2(); return; }
+  if (t.id === "fill-confirm"){ const d = fillWeek2.drafts || []; t.disabled = true; for (const idea of d){ if (!Store.ideaAt(idea.slot)) await Store.saveIdea(idea); } fillWeek2.drafts = null; $("#drawer").classList.remove("open"); $("#scrim").classList.remove("open"); $("#drawer").setAttribute("aria-hidden","true"); renderAll(); toast(`${d.length} créneaux remplis`); return; }
+  if (t.id === "fill-cancel"){ fillWeek2.drafts = null; $("#drawer").classList.remove("open"); $("#scrim").classList.remove("open"); $("#drawer").setAttribute("aria-hidden","true"); return; }
+  if (t.dataset.f){ UI.visFilter = t.dataset.f; renderVisuals(); return; }
+  if (t.id === "fix-claude"){ fixWithClaude(); return; }
+  if (t.id === "fix-use"){ $("#check-input").value = $("#fix-out").textContent; renderCheck(); toast("Texte remplacé"); return; }
+  if (t.id === "check-clear"){ $("#check-input").value = ""; renderCheck(); $("#check-input").focus(); return; }
+  if (t.id === "vbtn"){ const v = $("#hero-video"); if (v.paused){ v.play().catch(()=>{}); t.textContent = "Pause"; } else { v.pause(); t.textContent = "Lecture"; } return; }
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.todo){ Store.toggleTodo(t.dataset.todo, t.checked); if (Store.mode === "ro") t.checked = !t.checked; return; }
+  if (t.id === "m-slot"){ M.slot = t.value; return; }
+  if (t.id === "check-kind"){ renderCheck(); return; }
+});
+$("#scrim").addEventListener("click", () => { fillWeek2.drafts = null; closeDrawer(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#drawer").classList.contains("open")){ fillWeek2.drafts = null; closeDrawer(); } });
+$("#check-input").addEventListener("input", () => renderCheck());
+window.addEventListener("hashchange", () => {
+  show(location.hash.slice(1));
+  const head = $(`#view-${UI.view} .view-head`); if (head) window.scrollTo({top: head.getBoundingClientRect().top + scrollY - 80, behavior: reduceMotion ? "auto" : "smooth"});
+});
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (UI.view === "calendrier") renderBoard(); }, 200); });
+
+/* tooltip */
+const tip = $("#tip");
+function showTip(el){ const txt = el.getAttribute("data-tip"); if (!txt) return; tip.textContent = txt; tip.classList.add("show"); const r = el.getBoundingClientRect(); const tw = tip.offsetWidth, th = tip.offsetHeight; let x = r.left + r.width/2 - tw/2; x = Math.max(8, Math.min(innerWidth - tw - 8, x)); let y = r.top - th - 8; if (y < 8) y = r.bottom + 8; tip.style.left = x + "px"; tip.style.top = y + "px"; }
+document.addEventListener("pointerover", e => { const el = e.target.closest("[data-tip]"); if (el) showTip(el); });
+document.addEventListener("pointerout", e => { if (e.target.closest("[data-tip]")) tip.classList.remove("show"); });
+document.addEventListener("focusin", e => { const el = e.target.closest("[data-tip]"); if (el) showTip(el); });
+document.addEventListener("focusout", () => tip.classList.remove("show"));
+
+/* ═════════════════════════ DÉMARRAGE ═════════════════════════ */
+(function start(){
+  $("#check-input").value = SAMPLE_BAD;
+  buildReels(); renderVisuals(); renderRules();
+  const first = location.hash.slice(1);
+  show(VIEWS.includes(first) ? first : "calendrier");
+  renderAll();
+  if (UI.view === "calendrier") renderBoard(true);
+  setInterval(tick, 1000);
+  if (reduceMotion){ const v = $("#hero-video"); v.removeAttribute("autoplay"); v.pause(); $("#vbtn").textContent = "Lecture"; }
+  Store.init();
+  Claude.init();
+})();
+</script>
+
+</body></html>
